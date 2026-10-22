@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Models, audio, secrets — never commit
+models/*
+!models/.gitkeep
+*.wav
+*.mp3
+*.flac
+*.m4a
+.env
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,23 @@
+# Audio capture & VAD
+sounddevice
+numpy
+soxr
+silero-vad
+torch
+
+# ASR (Apple Silicon)
+mlx-whisper
+
+# Translation
+ctranslate2
+transformers
+sentencepiece
+
+# Speaker identification
+speechbrain
+
+# Terminal output
+rich
+
+# Benchmarks
+jiwer
