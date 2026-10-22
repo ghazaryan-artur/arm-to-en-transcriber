@@ -3,18 +3,53 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-.pytest_cache/
+.python-version
+*.egg-info/
+build/
+dist/
 
-# Models, audio, secrets — never commit
+# Test / lint caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Models and weights — never commit (one-time download via scripts/download_models.py)
 models/*
 !models/.gitkeep
+pretrained_models/
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.gguf
+
+# Audio / video — never commit
 *.wav
 *.mp3
 *.flac
 *.m4a
-.env
+*.ogg
+*.opus
+*.aac
+*.aiff
+*.caf
+*.webm
+*.mp4
+*.mov
 
-# macOS / editors
-.DS_Store
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Editors / OS
 .vscode/
 .idea/
+*.swp
+.DS_Store

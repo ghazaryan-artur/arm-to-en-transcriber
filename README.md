@@ -4,7 +4,7 @@ Listens to the microphone and system audio, transcribes spoken Armenian, transla
 
 **Local-only rule:** transcription, translation and speaker identification run entirely on this machine. No cloud speech or translation APIs are used. Model weights are downloaded once during setup; at runtime the app runs in offline mode (`HF_HUB_OFFLINE=1`) and works with Wi-Fi turned off.
 
-> Work in progress — see `docs/PLAN.md`.
+> Work in progress.
 
 ## Setup
 _TODO_
