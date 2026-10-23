@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: early skeleton — most modules are stubs.
+Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 1 done — offline file mode (WAV → HY → EN) works; live capture, VAD, pipeline and speaker ID are still stubs.
 
 ## Hard constraint: local-only
 
@@ -18,8 +18,10 @@ python -m pytest                              # all tests
 python -m pytest tests/test_output.py::test_render   # single test
 python -m armtranscribe --list-devices
 python -m armtranscribe --mic <id|name> --system <id|name> [--asr ...] [--mt ...] [--debug]
-python scripts/download_models.py             # one-time weight download into models/
-python scripts/bench_asr.py / bench_mt.py     # model bake-offs (WER/CER via jiwer, latency)
+python -m armtranscribe.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
+python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
+python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv]   # WER/CER (jiwer) + latency
+python scripts/bench_mt.py <manifest.tsv> [--asr-hyps hyp.tsv]               # chrF++/BLEU (sacrebleu) + latency
 ```
 
 No linter/formatter is configured.
@@ -39,7 +41,9 @@ BlackHole stream ─┘   (soxr, consumer thread)          └ source="system" �
 - **Concurrency**: plain threads + `queue.Queue`, no asyncio. PortAudio callbacks only `indata.copy()` into a queue — never block, resample, or run models in a callback. One ASR worker (GPU is single-use); segments processed in end-time order.
 - **Data types** (`models.py`): `Segment` (source, t_start/t_end in seconds since session start, float32 mono audio @ `SAMPLE_RATE`=16000) flows into the workers; `Result` (speaker, hy, en, latency) flows to `output.render`.
 - **Swappable backends** via `typing.Protocol` so benchmarks can compare models: `asr.Transcriber.transcribe(audio) -> str`, `translate.Translator.translate(hy) -> str`, `speakers.SpeakerTracker.assign(audio) -> str`. New model backends implement these; `--asr` / `--mt` select them.
-- **Default models**: ASR `mlx-community/whisper-large-v3-mlx` (Whisper with `language="hy"`, `temperature=0`, `condition_on_previous_text=False`, filter hallucinations / high `no_speech_prob`); MT NLLB-200 distilled 600M converted to CTranslate2 int8 at `models/nllb-600m-ct2` (`hye_Armn → eng_Latn`); speaker embeddings SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`) + online cosine clustering.
+- **Default models** (chosen by the Phase 1 bake-off, numbers in README): ASR `whisper-turbo-hy-mlx` = `Chillarmo/whisper-large-v3-turbo-armenian` converted HF → MLX fp16 by `download_models.py` (Whisper with `language="hy"`, `temperature=0`, `condition_on_previous_text=False`, filter hallucinations / high `no_speech_prob`); MT `nllb-1.3b-ct2` = NLLB-200 distilled 1.3B in CTranslate2 int8 (`hye_Armn → eng_Latn`, beam 2, 8 threads); speaker embeddings SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`) + online cosine clustering.
+- `--asr` / `--mt` take a model name under `models/` (see `download_models.py --list`) or a path; `asr.load_transcriber` picks the backend from the dir's `config.json` (MLX Whisper or MMS CTC), `translate.CT2Translator` handles NLLB and Marian dirs.
+- Benchmark manifests are header-less TSV `file<TAB>hy<TAB>en` with paths relative to the manifest; the data itself lives outside the repo.
 - **Latency target**: p95 segment-end → printed < 5 s. Main knobs are in the VAD (≈600 ms silence to end a segment, force-cut at ≈8 s, drop < 0.4 s).
 - Heavy imports (`sounddevice`, `torch`, models) are done lazily inside functions so `--list-devices` and tests stay fast.
 

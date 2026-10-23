@@ -1,5 +1,6 @@
 # Audio capture & VAD
 sounddevice
+soundfile
 numpy
 soxr
 silero-vad
@@ -21,3 +22,4 @@ rich
 
 # Benchmarks
 jiwer
+sacrebleu

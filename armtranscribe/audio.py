@@ -1,4 +1,26 @@
 """Audio device listing and capture (resampled to 16 kHz mono)."""
+import numpy as np
+
+from armtranscribe.models import SAMPLE_RATE
+
+
+def to_mono_16k(audio: np.ndarray, rate: int) -> np.ndarray:
+    """(frames,) or (frames, channels) at `rate` -> float32 mono @ SAMPLE_RATE."""
+    import soxr
+
+    audio = np.asarray(audio, dtype=np.float32)
+    if audio.ndim == 2:
+        audio = audio.mean(axis=1)
+    if rate != SAMPLE_RATE:
+        audio = soxr.resample(audio, rate, SAMPLE_RATE).astype(np.float32)
+    return audio
+
+
+def load_audio(path: str) -> np.ndarray:
+    import soundfile as sf
+
+    audio, rate = sf.read(path, dtype="float32", always_2d=False)
+    return to_mono_16k(audio, rate)
 
 
 def list_devices() -> None:
