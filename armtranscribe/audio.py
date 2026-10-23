@@ -1,7 +1,50 @@
 """Audio device listing and capture (resampled to 16 kHz mono)."""
+import queue
+
 import numpy as np
 
 from armtranscribe.models import SAMPLE_RATE
+
+
+class Capture:
+    """One input device. The PortAudio callback only queues raw blocks; read() resamples them.
+
+    Opened at the device's native rate (PortAudio's own resampling is not trusted) and mixed to
+    mono; read() is meant to be called from a single consumer thread.
+    """
+
+    def __init__(self, device: int):
+        import sounddevice as sd
+        import soxr
+
+        info = sd.query_devices(device)
+        self.name = info["name"]
+        self.rate = int(info["default_samplerate"])
+        self.overflows = 0
+        self._q: queue.Queue[np.ndarray] = queue.Queue()
+        self._resampler = soxr.ResampleStream(self.rate, SAMPLE_RATE, 1, dtype="float32")
+        self._stream = sd.InputStream(device=device, samplerate=self.rate, dtype="float32",
+                                      channels=min(info["max_input_channels"], 2), callback=self._callback)
+
+    def _callback(self, indata, frames, time, status) -> None:
+        if status.input_overflow:
+            self.overflows += 1
+        self._q.put(indata.copy())
+
+    def start(self) -> None:
+        self._stream.start()
+
+    def stop(self) -> None:
+        self._stream.stop()
+        self._stream.close()
+
+    def read(self, timeout: float = 0.1) -> np.ndarray | None:
+        """Next block as float32 mono @ SAMPLE_RATE (may be empty), or None if nothing arrived."""
+        try:
+            block = self._q.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        return self._resampler.resample_chunk(block.mean(axis=1))
 
 
 def to_mono_16k(audio: np.ndarray, rate: int) -> np.ndarray:
@@ -26,6 +69,16 @@ def load_audio(path: str) -> np.ndarray:
 def list_devices() -> None:
     import sounddevice as sd
     print(sd.query_devices())
+
+
+def default_input() -> int:
+    """The system default input device (System Settings → Sound → Input)."""
+    import sounddevice as sd
+
+    try:
+        return sd.query_devices(kind="input")["index"]
+    except sd.PortAudioError as e:
+        raise ValueError("no default input device (see --list-devices)") from e
 
 
 def resolve_device(spec: str, kind: str = "input") -> int:

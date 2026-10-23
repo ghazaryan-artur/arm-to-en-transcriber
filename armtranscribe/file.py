@@ -2,7 +2,8 @@
 
     python -m armtranscribe.file recording.wav [--asr ...] [--mt ...] [--debug]
 
-Long files are split into speech segments with Silero VAD using the live segmenter's limits.
+Long files are cut into speech segments by the live VAD segmenter, fed as if streamed,
+so the segmentation matches the live mode.
 """
 import argparse
 import time
@@ -11,26 +12,20 @@ from armtranscribe.cli import add_model_args, resolve_model  # first: sets offli
 
 import numpy as np  # noqa: E402
 
-from armtranscribe.models import SAMPLE_RATE, Result, Segment  # noqa: E402
-from armtranscribe.output import render  # noqa: E402
+from armtranscribe.models import Result, Segment  # noqa: E402
+from armtranscribe.output import render, render_timings  # noqa: E402
 
-MIN_SILENCE_MS = 600
-MAX_SEGMENT_S = 8.0
-MIN_SEGMENT_S = 0.4
-SPEECH_PAD_MS = 200
+CHUNK = 1600  # 100 ms, roughly what the live capture delivers per read
 
 
 def split_speech(audio: np.ndarray, source: str = "file") -> list[Segment]:
-    import torch
-    from silero_vad import get_speech_timestamps, load_silero_vad
+    from armtranscribe.vad import Segmenter
 
-    stamps = get_speech_timestamps(
-        torch.from_numpy(audio), load_silero_vad(), sampling_rate=SAMPLE_RATE,
-        min_silence_duration_ms=MIN_SILENCE_MS, max_speech_duration_s=MAX_SEGMENT_S,
-        min_speech_duration_ms=int(MIN_SEGMENT_S * 1000), speech_pad_ms=SPEECH_PAD_MS,
-    )
-    return [Segment(source, s["start"] / SAMPLE_RATE, s["end"] / SAMPLE_RATE, audio[s["start"]:s["end"]])
-            for s in stamps]
+    seg = Segmenter(source)
+    segments = []
+    for i in range(0, len(audio), CHUNK):
+        segments += seg.feed(audio[i:i + CHUNK])
+    return segments + seg.flush()
 
 
 def main() -> None:
@@ -59,9 +54,9 @@ def main() -> None:
             continue
         en = mt.translate(hy)
         t2 = time.perf_counter()
-        print(render(Result(seg.t_start, "Speaker", hy, en, latency=t2 - t0)), flush=True)
-        if args.debug:
-            print(f"  [{seg.t_end - seg.t_start:.1f} s audio: asr {t1 - t0:.2f} s, mt {t2 - t1:.2f} s]\n")
+        r = Result(seg.t_start, "Speaker", hy, en, latency=t2 - t0, audio_s=seg.t_end - seg.t_start,
+                   asr_s=t1 - t0, mt_s=t2 - t1)
+        print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,8 @@ _TODO_
 python scripts/download_models.py               # once: default ASR + MT into models/ (~5 GB download)
 python -m armtranscribe.file recording.wav      # offline: transcribe + translate a file
 python -m armtranscribe --list-devices
-python -m armtranscribe --mic <id> --system <id>   # live (in progress)
+python -m armtranscribe                         # live: default microphone, lines labelled "Me"
+python -m armtranscribe --mic <id|name> --debug  # pick the mic; --debug prints per-stage timings
 ```
 `--asr` / `--mt` select another model from `models/` (`scripts/download_models.py --list`).
 

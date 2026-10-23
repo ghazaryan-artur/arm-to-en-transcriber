@@ -21,3 +21,6 @@ class Result:
     hy: str
     en: str
     latency: float       # seconds from segment end to print
+    audio_s: float = 0.0 # segment duration and per-stage times, for --debug
+    asr_s: float = 0.0
+    mt_s: float = 0.0

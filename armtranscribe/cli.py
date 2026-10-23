@@ -1,6 +1,8 @@
 """Command-line entry point."""
 import argparse
 import os
+import sys
+import time
 from pathlib import Path
 
 # Local-only rule: models are downloaded once by scripts/download_models.py,
@@ -42,4 +44,47 @@ def main() -> None:
         from armtranscribe.audio import list_devices
         list_devices()
         return
-    raise SystemExit("Live pipeline not implemented yet; for files use: python -m armtranscribe.file <wav>")
+
+    import numpy as np
+
+    from armtranscribe.asr import load_transcriber
+    from armtranscribe.audio import Capture, default_input, resolve_device
+    from armtranscribe.models import SAMPLE_RATE
+    from armtranscribe.output import percentile_summary, render, render_timings
+    from armtranscribe.pipeline import Pipeline
+    from armtranscribe.translate import load_translator
+    from armtranscribe.vad import Segmenter
+
+    try:
+        mic = resolve_device(args.mic) if args.mic else default_input()
+    except ValueError as e:
+        raise SystemExit(str(e))
+    if args.system:
+        print("--system is not supported yet (Phase 3), ignored", file=sys.stderr)
+
+    print("Loading models...", flush=True)
+    asr = load_transcriber(resolve_model(args.asr))
+    mt = load_translator(resolve_model(args.mt))
+    asr.transcribe(np.zeros(SAMPLE_RATE, np.float32))  # warm-up: the first call loads weights
+    mt.translate("Բարև")
+
+    latencies = []
+
+    def emit(r):
+        latencies.append(r.latency)
+        print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
+
+    capture = Capture(mic)
+    pipeline = Pipeline(asr, mt, emit)
+    pipeline.add_source(capture, Segmenter("mic"))
+    print(f"Mic: {capture.name}" + ("" if args.mic else " (system default)"))
+    print("Listening, Ctrl+C to stop\n", flush=True)
+    pipeline.start()
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\nStopping, finishing queued segments (Ctrl+C again to quit now)...", flush=True)
+        pipeline.stop()
+    if args.debug:
+        print(percentile_summary(latencies) + f", input overflows {capture.overflows}")

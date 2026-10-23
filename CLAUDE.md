@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 1 done — offline file mode (WAV → HY → EN) works; live capture, VAD, pipeline and speaker ID are still stubs.
+Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 2 done — live mic → HY → EN works (`python -m armtranscribe`, mic labelled `Me`); file mode uses the same streaming VAD segmenter. System audio (Phase 3) and speaker ID (Phase 4) are still to do.
 
 ## Hard constraint: local-only
 
@@ -17,7 +17,7 @@ pip install -r requirements.txt pytest       # pytest is not in requirements.txt
 python -m pytest                              # all tests
 python -m pytest tests/test_output.py::test_render   # single test
 python -m armtranscribe --list-devices
-python -m armtranscribe --mic <id|name> --system <id|name> [--asr ...] [--mt ...] [--debug]
+python -m armtranscribe [--mic <id|name>] [--asr ...] [--mt ...] [--debug]   # live; no --mic = system default input
 python -m armtranscribe.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
 python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
 python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv]   # WER/CER (jiwer) + latency
