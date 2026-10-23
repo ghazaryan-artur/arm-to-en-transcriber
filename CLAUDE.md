@@ -17,7 +17,7 @@ pip install -r requirements.txt pytest       # pytest is not in requirements.txt
 python -m pytest                              # all tests
 python -m pytest tests/test_output.py::test_render   # single test
 python -m armtranscribe --list-devices
-python -m armtranscribe [--mic <id|name>] [--asr ...] [--mt ...] [--debug]   # live; no --mic = system default input
+python -m armtranscribe [--mic <id|name>] [--asr ...] [--mt ...] [--debug] [--save-audio DIR]   # live; no --mic = system default input
 python -m armtranscribe.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
 python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
 python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv]   # WER/CER (jiwer) + latency

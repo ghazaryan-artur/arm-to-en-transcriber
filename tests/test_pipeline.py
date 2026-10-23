@@ -1,5 +1,8 @@
 import time
 
+import soundfile as sf
+
+from armtranscribe.audio import Recorder
 from armtranscribe.pipeline import Pipeline
 from armtranscribe.vad import Segmenter
 from tests.test_vad import SILENCE, SPEECH, fake_prob, signal
@@ -41,10 +44,10 @@ class FakeMT:
         return hy.replace("hy", "en")
 
 
-def run(audio, asr):
+def run(audio, asr, recorder=None):
     results = []
     capture = FakeCapture(audio)
-    p = Pipeline(asr, FakeMT(), results.append)
+    p = Pipeline(asr, FakeMT(), results.append, recorder)
     p.add_source(capture, Segmenter("mic", speech_prob=fake_prob))
     p.start()
     p.stop()
@@ -77,3 +80,13 @@ def test_empty_transcript_is_not_emitted():
 
     assert run(THREE_UTTERANCES, Silent())[1] == []
 
+
+def test_recorder_saves_stream_segments_and_manifest(tmp_path):
+    rec = Recorder(str(tmp_path))
+    _, results = run(THREE_UTTERANCES, FakeASR(), rec)
+    stream, _ = sf.read(rec.dir / "mic.wav")
+    assert len(stream) == len(THREE_UTTERANCES)
+    rows = [line.split("\t") for line in (rec.dir / "segments.tsv").read_text().splitlines()]
+    assert rows == [["0001_mic.wav", "hy1", "en1"], ["0002_mic.wav", "hy2", "en2"], ["0003_mic.wav", "hy3", "en3"]]
+    for (name, _, _), r in zip(rows, results):
+        assert len(sf.read(rec.dir / name)[0]) == round(r.audio_s * 16000)

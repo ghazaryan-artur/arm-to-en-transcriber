@@ -47,6 +47,45 @@ class Capture:
         return self._resampler.resample_chunk(block.mean(axis=1))
 
 
+class Recorder:
+    """Saves a session for later evaluation and fine-tuning, into a new timestamped dir:
+
+    <source>.wav         the whole 16 kHz stream of each source (to re-run the VAD with other settings)
+    NNNN_<source>.wav    each transcribed segment
+    segments.tsv         `file<TAB>hy<TAB>en` per segment: a benchmark manifest once hy/en are corrected
+    """
+
+    def __init__(self, root: str):
+        from datetime import datetime
+        from pathlib import Path
+
+        self.dir = Path(root) / datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.dir.mkdir(parents=True)
+        self._streams = {}
+        self._n = 0
+
+    def write_stream(self, source: str, block: np.ndarray) -> None:
+        import soundfile as sf
+
+        if source not in self._streams:
+            self._streams[source] = sf.SoundFile(self.dir / f"{source}.wav", "w", SAMPLE_RATE, 1, "PCM_16")
+        self._streams[source].write(block)
+
+    def write_segment(self, seg, hy: str, en: str) -> None:
+        import soundfile as sf
+
+        self._n += 1
+        name = f"{self._n:04d}_{seg.source}.wav"
+        sf.write(self.dir / name, seg.audio, SAMPLE_RATE, subtype="PCM_16")
+        clean = lambda s: " ".join(s.split())  # no tabs/newlines inside a TSV field
+        with open(self.dir / "segments.tsv", "a", encoding="utf-8") as f:
+            f.write(f"{name}\t{clean(hy)}\t{clean(en)}\n")
+
+    def close(self) -> None:
+        for s in self._streams.values():
+            s.close()
+
+
 def to_mono_16k(audio: np.ndarray, rate: int) -> np.ndarray:
     """(frames,) or (frames, channels) at `rate` -> float32 mono @ SAMPLE_RATE."""
     import soxr

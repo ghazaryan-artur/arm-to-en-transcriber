@@ -16,6 +16,7 @@ python -m armtranscribe.file recording.wav      # offline: transcribe + translat
 python -m armtranscribe --list-devices
 python -m armtranscribe                         # live: default microphone, lines labelled "Me"
 python -m armtranscribe --mic <id|name> --debug  # pick the mic; --debug prints per-stage timings
+python -m armtranscribe --save-audio DIR         # also save the session: full stream, segments, segments.tsv (file, hy, en)
 ```
 `--asr` / `--mt` select another model from `models/` (`scripts/download_models.py --list`).
 

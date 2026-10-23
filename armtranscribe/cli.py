@@ -35,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--system", help="system-audio (loopback) device id or name, e.g. BlackHole")
     add_model_args(p)
     p.add_argument("--debug", action="store_true", help="print per-stage timings")
+    p.add_argument("--save-audio", metavar="DIR",
+                   help="save the session (streams, segments, segments.tsv) into a new subdir of DIR")
     return p
 
 
@@ -48,7 +50,7 @@ def main() -> None:
     import numpy as np
 
     from armtranscribe.asr import load_transcriber
-    from armtranscribe.audio import Capture, default_input, resolve_device
+    from armtranscribe.audio import Capture, Recorder, default_input, resolve_device
     from armtranscribe.models import SAMPLE_RATE
     from armtranscribe.output import percentile_summary, render, render_timings
     from armtranscribe.pipeline import Pipeline
@@ -75,9 +77,12 @@ def main() -> None:
         print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
 
     capture = Capture(mic)
-    pipeline = Pipeline(asr, mt, emit)
+    recorder = Recorder(args.save_audio) if args.save_audio else None
+    pipeline = Pipeline(asr, mt, emit, recorder)
     pipeline.add_source(capture, Segmenter("mic"))
     print(f"Mic: {capture.name}" + ("" if args.mic else " (system default)"))
+    if recorder:
+        print(f"Saving to {recorder.dir}")
     print("Listening, Ctrl+C to stop\n", flush=True)
     pipeline.start()
     try:

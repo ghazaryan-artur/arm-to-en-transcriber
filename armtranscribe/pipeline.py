@@ -21,8 +21,9 @@ class Pipeline:
     next is transcribed. Session time starts at start(); segment times are on the same clock.
     """
 
-    def __init__(self, asr: Transcriber, mt: Translator, emit: Callable[[Result], None]):
-        self.asr, self.mt, self.emit = asr, mt, emit
+    def __init__(self, asr: Transcriber, mt: Translator, emit: Callable[[Result], None], recorder=None):
+        """`recorder`: optional audio.Recorder that saves the streams and transcribed segments."""
+        self.asr, self.mt, self.emit, self.recorder = asr, mt, emit, recorder
         self.segments: queue.Queue[Segment | None] = queue.Queue()
         self._texts: queue.Queue[tuple[Segment, str, float] | None] = queue.Queue()
         self._sources: list[tuple] = []
@@ -62,15 +63,22 @@ class Pipeline:
         self.segments.put(_STOP)
         for t in self._threads[n:]:
             t.join()
+        if self.recorder:
+            self.recorder.close()
 
     def _source_loop(self, capture, segmenter: Segmenter) -> None:
         while not self._stopping.is_set():
             block = capture.read(timeout=0.1)
             if block is not None:
-                self._put(segmenter.feed(block))
+                self._feed(segmenter, block)
         while (block := capture.read(timeout=0.05)) is not None:  # stream is stopped: drain it
-            self._put(segmenter.feed(block))
+            self._feed(segmenter, block)
         self._put(segmenter.flush())
+
+    def _feed(self, segmenter: Segmenter, block) -> None:
+        if self.recorder:
+            self.recorder.write_stream(segmenter.source, block)
+        self._put(segmenter.feed(block))
 
     def _put(self, segments: list[Segment]) -> None:
         for seg in segments:
@@ -97,6 +105,8 @@ class Pipeline:
             except Exception as e:
                 print(f"MT error at {seg.t_start:.1f} s: {e!r}", file=sys.stderr)
                 en = ""
+            if self.recorder:
+                self.recorder.write_segment(seg, hy, en)
             self.emit(Result(seg.t_start, LABELS.get(seg.source, seg.source), hy, en,
                              latency=self.clock() - seg.t_end, audio_s=seg.t_end - seg.t_start,
                              asr_s=asr_s, mt_s=time.perf_counter() - t))
