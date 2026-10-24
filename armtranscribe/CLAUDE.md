@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the program in `armtranscribe/` (the repo root is the workspace above it).
 
-Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 2 done — live mic → HY → EN works (`python -m app`, mic labelled `Me`); file mode uses the same streaming VAD segmenter. System audio (Phase 3) and speaker ID (Phase 4) are still to do.
+Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 3 done — live mic + system audio → HY → EN works (`python -m app --system BlackHole`, mic labelled `Me`, system audio `System`, one VAD segmenter per stream); file mode uses the same streaming VAD segmenter. Speaker ID on the system side (Phase 4) is still to do.
 
 ## Hard constraint: local-only
 
@@ -19,7 +19,7 @@ pip install pytest                            # dev only: pytest is not in requi
 python -m pytest                              # all tests
 python -m pytest tests/test_output.py::test_render   # single test
 python -m app --list-devices
-python -m app [--mic <id|name>] [--asr ...] [--mt ...] [--debug] [--save-audio DIR]   # live; no --mic = system default input
+python -m app [--mic <id|name>] [--system <id|name>] [--asr ...] [--mt ...] [--debug] [--save-audio DIR]   # live; no --mic = system default input, no --system = mic only
 python -m app.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
 python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
 python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv] [--vad]   # WER/CER (jiwer) + latency; --vad: cut long clips like live

@@ -1,7 +1,6 @@
 """Command-line entry point."""
 import argparse
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -59,10 +58,11 @@ def main() -> None:
 
     try:
         mic = resolve_device(args.mic) if args.mic else default_input()
+        system = resolve_device(args.system) if args.system else None
     except ValueError as e:
         raise SystemExit(str(e))
-    if args.system:
-        print("--system is not supported yet (Phase 3), ignored", file=sys.stderr)
+    if system == mic:
+        raise SystemExit("--system must be a different device than the microphone (see --list-devices)")
 
     print("Loading models...", flush=True)
     asr = load_transcriber(resolve_model(args.asr))
@@ -76,11 +76,16 @@ def main() -> None:
         latencies.append(r.latency)
         print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
 
-    capture = Capture(mic)
+    captures = {"mic": Capture(mic)}
+    if system is not None:
+        captures["system"] = Capture(system)
     recorder = Recorder(args.save_audio) if args.save_audio else None
     pipeline = Pipeline(asr, mt, emit, recorder)
-    pipeline.add_source(capture, Segmenter("mic"))
-    print(f"Mic: {capture.name}" + ("" if args.mic else " (system default)"))
+    for source, capture in captures.items():
+        pipeline.add_source(capture, Segmenter(source))  # one VAD per stream: Silero keeps state
+    print(f"Mic: {captures['mic'].name}" + ("" if args.mic else " (system default)"))
+    if "system" in captures:
+        print(f"System audio: {captures['system'].name}")
     if recorder:
         print(f"Saving to {recorder.dir}")
     print("Listening, Ctrl+C to stop\n", flush=True)
@@ -92,4 +97,5 @@ def main() -> None:
         print("\nStopping, finishing queued segments (Ctrl+C again to quit now)...", flush=True)
         pipeline.stop()
     if args.debug:
-        print(percentile_summary(latencies) + f", input overflows {capture.overflows}")
+        overflows = ", ".join(f"{s} {c.overflows}" for s, c in captures.items())
+        print(percentile_summary(latencies) + f", input overflows: {overflows}")

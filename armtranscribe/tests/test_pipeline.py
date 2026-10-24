@@ -90,3 +90,16 @@ def test_recorder_saves_stream_segments_and_manifest(tmp_path):
     assert rows == [["0001_mic.wav", "hy1", "en1"], ["0002_mic.wav", "hy2", "en2"], ["0003_mic.wav", "hy3", "en3"]]
     for (name, _, _), r in zip(rows, results):
         assert len(sf.read(rec.dir / name)[0]) == round(r.audio_s * 16000)
+
+
+def test_two_sources_are_labelled_and_both_flushed():
+    results = []
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(THREE_UTTERANCES[: 16000 * 3])
+    p = Pipeline(FakeASR(), FakeMT(), results.append)
+    p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
+    p.add_source(system, Segmenter("system", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert mic.stopped and system.stopped
+    assert sorted(r.speaker for r in results) == ["Me", "Me", "Me", "System", "System"]
+    assert sorted(r.hy for r in results) == [f"hy{i}" for i in range(1, 6)]

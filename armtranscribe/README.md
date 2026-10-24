@@ -4,7 +4,7 @@ Listens to the microphone and system audio, transcribes spoken Armenian, transla
 
 **Local-only rule:** transcription, translation and speaker identification run entirely on this machine. No cloud speech or translation APIs are used. Model weights are downloaded once during setup (`setup.command` → `scripts/download_models.py`, the only code that uses the network); at runtime the app runs in offline mode (`HF_HUB_OFFLINE=1`) and works with Wi-Fi turned off.
 
-> **Status: work in progress.** Done: live microphone → Armenian → English (lines labelled `Me`), file mode. Not yet: system audio (`--system` is accepted but ignored) and speaker identification (`Speaker 1`, `Speaker 2` …).
+> **Status: work in progress.** Done: live microphone + system audio → Armenian → English (mic lines labelled `Me`, system-audio lines `System`), file mode. Not yet: speaker identification on the system side (`Speaker 1`, `Speaker 2` …).
 
 ## Setup
 
@@ -35,14 +35,14 @@ macOS cannot record its own output directly, so the call audio is routed through
 2. Open **Audio MIDI Setup** → `+` → **Create Multi-Output Device**. Tick your headphones (or speakers) and **BlackHole 2ch**, choose the headphones as **Primary Device** (the clock source) and enable **Drift Correction** for BlackHole.
 3. Make the Multi-Output Device the output: System Settings → Sound → Output, or the speaker setting inside Zoom / Meet / Telegram.
 4. Volume keys don't work on a Multi-Output Device: set the volume on the headphones in Audio MIDI Setup or in the call app.
-5. Use headphones. With speakers the microphone also picks up the other side, and their words appear twice (echo handling is out of scope).
+5. Use headphones, at a normal call volume. With speakers the microphone also picks up the other side, and their words appear twice (echo handling is out of scope). Very loud headphones leak into a headset mic too: in our test at ~100 % volume the call came through the headset mic only ~4 dB below the user's own voice and was transcribed again as `Me`.
 
 ### 4. Check
 
 ```bash
 source .venv/bin/activate
-python -m app --list-devices   # the mic and "BlackHole 2ch" should both be listed
-python -m app                  # say something in Armenian: a "Me" line appears within a few seconds
+python -m app --list-devices        # the mic and "BlackHole 2ch" should both be listed
+python -m app --system BlackHole    # say something in Armenian ("Me" line), play an Armenian video ("System" line)
 ```
 
 To check that nothing goes over the network, turn Wi-Fi off and run it again.
@@ -53,7 +53,8 @@ Run from this folder with the venv active (`source .venv/bin/activate`):
 
 ```bash
 python -m app --list-devices
-python -m app                          # live: default microphone, lines labelled "Me"
+python -m app                          # live: default microphone only, lines labelled "Me"
+python -m app --system BlackHole       # live: microphone + system audio ("System"), the normal call setup
 python -m app --mic <id|name> --debug  # pick the mic; --debug prints per-stage timings and latency p50/p95 on exit
 python -m app --save-audio DIR         # also save the session: full stream, segments, segments.tsv (file, hy, en)
 python -m app.file recording.wav       # offline: transcribe + translate a file
@@ -137,4 +138,6 @@ _TODO_
 - **Proper names and English terms.** NLLB may still translate a name that is also a common word, and English loanwords written in Armenian script are often mistranslated (`բեթրիփեք` "battery pack" → "tripectin bacteria").
 - **ASR errors cascade into MT.** One wrong letter can change the meaning (`ՄԱԿ-ի` "UN's" → `մակի` → "mouse expert").
 - **Licenses.** NVIDIA FastConformer: CC-BY-4.0 (attribution to NVIDIA). NLLB-200: CC-BY-NC-4.0 (non-commercial).
-- _TODO: echo without headphones, overlapping speech, speaker ID on short segments, Western Armenian._
+- **Echo.** The microphone is not echo-cancelled: with speakers, or very loud headphones, the other side is transcribed twice (`System` and `Me`). Use headphones at a normal volume.
+- **Overlapping speech.** When both sides talk at once, the mic segment also contains the other side, and the `Me` line mixes both.
+- _TODO: speaker ID on short segments, Western Armenian._
