@@ -11,7 +11,7 @@ for _var in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE"):
     os.environ.setdefault(_var, "1")
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
-DEFAULT_ASR = "whisper-turbo-hy-mlx"
+DEFAULT_ASR = "fastconformer-hy-onnx"
 DEFAULT_MT = "nllb-1.3b-ct2"
 
 

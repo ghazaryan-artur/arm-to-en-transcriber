@@ -68,9 +68,29 @@ class MMSCTC:
         return self.processor.decode(logits[0].argmax(dim=-1)).strip()
 
 
+class NemoONNX:
+    """NVIDIA NeMo FastConformer exported to ONNX, run by onnx-asr on the CPU (int8).
+
+    The Armenian model writes punctuation and capitalisation itself and, being a transducer,
+    doesn't loop or hallucinate on silence the way Whisper does.
+    """
+
+    def __init__(self, path: str, model_type: str):
+        import onnx_asr
+
+        # CPU only: ~4x faster than onnxruntime's default CoreML partitioning for this graph (0.04 vs
+        # 0.15 s per segment), loads in 0.4 s, and rules out any non-local execution provider
+        self.model = onnx_asr.load_model(model_type, path, quantization="int8", providers=["CPUExecutionProvider"])
+
+    def transcribe(self, audio: np.ndarray) -> str:
+        return self.model.recognize(audio.astype(np.float32), sample_rate=SAMPLE_RATE).strip()
+
+
 def load_transcriber(path: str) -> Transcriber:
     """Pick the backend from the model dir's config.json."""
     config = json.loads((Path(path) / "config.json").read_text())
+    if config.get("model_type", "").startswith("nemo-"):
+        return NemoONNX(path, config["model_type"])
     if "n_mels" in config:
         return MLXWhisper(path)
     if config.get("model_type") == "wav2vec2":

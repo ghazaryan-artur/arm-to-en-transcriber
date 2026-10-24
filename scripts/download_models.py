@@ -18,6 +18,9 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 # name -> (how, HF repo, extra)
 MODELS = {
     # ASR
+    "fastconformer-hy-onnx": ("snapshot", "Vana-Labs/stt-fastconformer-armenian", [
+        "config.json", "vocab.txt", "nemo80.onnx", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx",
+    ]),
     "whisper-large-v3-mlx": ("snapshot", "mlx-community/whisper-large-v3-mlx", None),
     "whisper-large-v3-turbo-mlx": ("snapshot", "mlx-community/whisper-large-v3-turbo", None),
     "whisper-turbo-hy-mlx": ("whisper-to-mlx", "Chillarmo/whisper-large-v3-turbo-armenian", None),
@@ -30,7 +33,7 @@ MODELS = {
     "nllb-1.3b-ct2": ("ct2", "facebook/nllb-200-distilled-1.3B", ["sentencepiece.bpe.model"]),
     "opus-mt-hy-en-ct2": ("ct2", "Helsinki-NLP/opus-mt-hy-en", ["source.spm", "target.spm"]),
 }
-DEFAULT = ["whisper-turbo-hy-mlx", "nllb-1.3b-ct2"]
+DEFAULT = ["fastconformer-hy-onnx", "nllb-1.3b-ct2"]
 
 # HF transformers Whisper parameter names -> mlx_whisper (OpenAI-style) names
 HF_TO_MLX = [

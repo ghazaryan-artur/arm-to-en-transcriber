@@ -38,3 +38,30 @@ def test_whisper_drops_no_speech_and_hallucinations():
 def test_whisper_all_filtered_is_empty():
     w = fake_whisper([{"text": " Thank you.", "no_speech_prob": 0.4}])
     assert w.transcribe(np.zeros(16000, np.float32)) == ""
+
+
+def test_load_transcriber_picks_nemo_onnx_by_config(tmp_path, monkeypatch):
+    import json
+    import sys
+    import types
+
+    from armtranscribe.asr import NemoONNX, load_transcriber
+
+    calls = {}
+
+    class FakeModel:
+        def recognize(self, audio, sample_rate):
+            calls["recognize"] = (audio.dtype, sample_rate)
+            return " Բարև ձեզ։ "
+
+    def load_model(model_type, path, quantization, providers):
+        calls["load"] = (model_type, path, quantization, providers)
+        return FakeModel()
+
+    monkeypatch.setitem(sys.modules, "onnx_asr", types.SimpleNamespace(load_model=load_model))
+    (tmp_path / "config.json").write_text(json.dumps({"model_type": "nemo-conformer-rnnt"}))
+    asr = load_transcriber(str(tmp_path))
+    assert isinstance(asr, NemoONNX)
+    assert calls["load"] == ("nemo-conformer-rnnt", str(tmp_path), "int8", ["CPUExecutionProvider"])
+    assert asr.transcribe(np.zeros(16000, np.float64)) == "Բարև ձեզ։"
+    assert calls["recognize"] == (np.float32, 16000)

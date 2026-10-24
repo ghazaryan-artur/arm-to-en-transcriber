@@ -10,7 +10,7 @@ Transcription, translation, and speaker ID must run entirely on-device. Never ad
 
 ## Commands
 
-Environment: Python 3.11 venv, Apple Silicon (ASR uses `mlx-whisper`). Run everything from this directory with the venv activated.
+Environment: Python 3.11 venv, Apple Silicon (default ASR runs on the CPU via `onnx-asr`; Whisper alternatives use `mlx-whisper`). Run everything from this directory with the venv activated.
 
 ```bash
 pip install -r requirements.txt pytest       # pytest is not in requirements.txt
@@ -20,7 +20,7 @@ python -m armtranscribe --list-devices
 python -m armtranscribe [--mic <id|name>] [--asr ...] [--mt ...] [--debug] [--save-audio DIR]   # live; no --mic = system default input
 python -m armtranscribe.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
 python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
-python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv]   # WER/CER (jiwer) + latency
+python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv] [--vad]   # WER/CER (jiwer) + latency; --vad: cut long clips like live
 python scripts/bench_mt.py <manifest.tsv> [--asr-hyps hyp.tsv]               # chrF++/BLEU (sacrebleu) + latency
 ```
 
@@ -41,8 +41,8 @@ BlackHole stream ─┘   (soxr, consumer thread)          └ source="system" �
 - **Concurrency**: plain threads + `queue.Queue`, no asyncio. PortAudio callbacks only `indata.copy()` into a queue — never block, resample, or run models in a callback. One ASR worker (GPU is single-use); segments processed in end-time order.
 - **Data types** (`models.py`): `Segment` (source, t_start/t_end in seconds since session start, float32 mono audio @ `SAMPLE_RATE`=16000) flows into the workers; `Result` (speaker, hy, en, latency) flows to `output.render`.
 - **Swappable backends** via `typing.Protocol` so benchmarks can compare models: `asr.Transcriber.transcribe(audio) -> str`, `translate.Translator.translate(hy) -> str`, `speakers.SpeakerTracker.assign(audio) -> str`. New model backends implement these; `--asr` / `--mt` select them.
-- **Default models** (chosen by the Phase 1 bake-off, numbers in README): ASR `whisper-turbo-hy-mlx` = `Chillarmo/whisper-large-v3-turbo-armenian` converted HF → MLX fp16 by `download_models.py` (Whisper with `language="hy"`, `temperature=0`, `condition_on_previous_text=False`, filter hallucinations / high `no_speech_prob`); MT `nllb-1.3b-ct2` = NLLB-200 distilled 1.3B in CTranslate2 int8 (`hye_Armn → eng_Latn`, beam 2, 8 threads); speaker embeddings SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`) + online cosine clustering.
-- `--asr` / `--mt` take a model name under `models/` (see `download_models.py --list`) or a path; `asr.load_transcriber` picks the backend from the dir's `config.json` (MLX Whisper or MMS CTC), `translate.CT2Translator` handles NLLB and Marian dirs.
+- **Default models** (chosen by bake-offs, numbers in README): ASR `fastconformer-hy-onnx` = NVIDIA `stt_hy_fastconformer_hybrid_large_pc` as ONNX int8 (`Vana-Labs/stt-fastconformer-armenian`), run by `onnx-asr` on the CPU provider only (`asr.NemoONNX`; writes punctuation + capitalisation). Alternative `whisper-turbo-hy-mlx` = `Chillarmo/whisper-large-v3-turbo-armenian` converted HF → MLX fp16 (Whisper with `language="hy"`, `temperature=0`, `condition_on_previous_text=False`, filter hallucinations / high `no_speech_prob`); MT `nllb-1.3b-ct2` = NLLB-200 distilled 1.3B in CTranslate2 int8 (`hye_Armn → eng_Latn`, beam 2, 8 threads); speaker embeddings SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`) + online cosine clustering.
+- `--asr` / `--mt` take a model name under `models/` (see `download_models.py --list`) or a path; `asr.load_transcriber` picks the backend from the dir's `config.json` (NeMo ONNX, MLX Whisper or MMS CTC), `translate.CT2Translator` handles NLLB and Marian dirs.
 - Benchmark manifests are header-less TSV `file<TAB>hy<TAB>en` with paths relative to the manifest; the data itself lives outside the repo.
 - **Latency target**: p95 segment-end → printed < 5 s. Main knobs are in the VAD (≈600 ms silence to end a segment, force-cut at ≈8 s, drop < 0.4 s).
 - Heavy imports (`sounddevice`, `torch`, models) are done lazily inside functions so `--list-devices` and tests stay fast.

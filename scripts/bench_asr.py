@@ -1,10 +1,11 @@
 """Compare ASR models on Armenian clips: WER/CER and latency.
 
-    python scripts/bench_asr.py <manifest.tsv> [--models whisper-large-v3-mlx mms-1b-all ...] [--save hyp.tsv]
+    python scripts/bench_asr.py <manifest.tsv> [--models whisper-large-v3-mlx mms-1b-all ...] [--save hyp.tsv] [--vad]
 
 manifest.tsv: <wav path relative to the manifest><TAB><Armenian reference>[<TAB>...], no header.
 Text is normalised before scoring (lowercase, no punctuation, եւ -> և). Each model is warmed
-up on the first clip; latency is wall time per clip on this machine.
+up on the first clip; latency is wall time per clip on this machine. --vad cuts each clip with the
+live segmenter and joins the segment transcripts, as the live mode does (for long clips, e.g. podcasts).
 """
 import argparse
 import sys
@@ -31,22 +32,22 @@ def read_manifest(path: Path) -> list[tuple[Path, list[str]]]:
     return rows
 
 
-def bench(model: str, clips: list[tuple[str, np.ndarray, str]]) -> dict:
+def bench(model: str, clips: list[tuple[str, list[np.ndarray], str]], audio_s: float) -> dict:
+    """clips: (name, audio pieces transcribed separately and joined, reference)."""
     import jiwer
 
     t = time.perf_counter()
     asr = load_transcriber(resolve_model(model))
-    asr.transcribe(clips[0][1])  # warm-up: first call compiles kernels / loads weights
+    asr.transcribe(clips[0][1][0])  # warm-up: first call compiles kernels / loads weights
     load_s = time.perf_counter() - t
 
     hyps, secs = [], []
-    for _, audio, _ in clips:
+    for _, pieces, _ in clips:
         t = time.perf_counter()
-        hyps.append(asr.transcribe(audio))
+        hyps.append(" ".join(text for piece in pieces if (text := asr.transcribe(piece))))
         secs.append(time.perf_counter() - t)
     refs = [normalize(ref) for _, _, ref in clips]
     norm = [normalize(h) or "<empty>" for h in hyps]
-    audio_s = sum(len(a) for _, a, _ in clips) / SAMPLE_RATE
     return {
         "model": model, "hyps": hyps, "load_s": load_s,
         "wer": jiwer.wer(refs, norm), "cer": jiwer.cer(refs, norm),
@@ -60,17 +61,24 @@ def main() -> None:
     p.add_argument("manifest", type=Path)
     p.add_argument("--models", nargs="+", default=DEFAULT_MODELS, help="model dirs or names in models/")
     p.add_argument("--save", type=Path, help="write per-clip hypotheses as TSV")
+    p.add_argument("--vad", action="store_true", help="cut clips with the live VAD segmenter, join the transcripts")
     args = p.parse_args()
 
     rows = read_manifest(args.manifest)
-    clips = [(f.name, load_audio(str(f)), texts[0]) for f, texts in rows]
-    durs = [len(a) / SAMPLE_RATE for _, a, _ in clips]
-    print(f"{len(clips)} clips, {sum(durs):.0f} s audio, {min(durs):.1f}-{max(durs):.1f} s each\n")
+    # names as written in the manifest (may include subdirs), so bench_mt.py --asr-hyps can match them
+    audios = [(str(f.relative_to(args.manifest.parent)), load_audio(str(f)), texts[0]) for f, texts in rows]
+    durs = [len(a) / SAMPLE_RATE for _, a, _ in audios]
+    print(f"{len(audios)} clips, {sum(durs):.0f} s audio, {min(durs):.1f}-{max(durs):.1f} s each\n")
+    if args.vad:
+        from armtranscribe.file import split_speech
+        clips = [(name, [s.audio for s in split_speech(a)] or [a], ref) for name, a, ref in audios]
+    else:
+        clips = [(name, [a], ref) for name, a, ref in audios]
 
     results = []
     for model in args.models:
         print(f"running {model} ...", file=sys.stderr)
-        results.append(bench(model, clips))
+        results.append(bench(model, clips, sum(durs)))
 
     print("| Model | WER | CER | s/clip (mean) | s/clip (p90) | RTF | punctuated | load+warm-up s |")
     print("|---|---|---|---|---|---|---|---|")

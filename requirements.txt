@@ -6,7 +6,8 @@ soxr
 silero-vad
 torch
 
-# ASR (Apple Silicon)
+# ASR: NVIDIA FastConformer (ONNX, CPU); Whisper alternatives on Apple Silicon
+onnx-asr[cpu]
 mlx-whisper
 
 # Translation
