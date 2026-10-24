@@ -1,53 +1,46 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Workspace and git repository of the Armenian → English transcriber. **`armtranscribe/` is the program**; `docs/`, `tools/` and `chats/` around it are the development record and are committed too (the assignment grades the working method as well as the result). Test audio, model weights, `.venv` and the assignment brief are gitignored.
 
-Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 2 done — live mic → HY → EN works (`python -m armtranscribe`, mic labelled `Me`); file mode uses the same streaming VAD segmenter. System audio (Phase 3) and speaker ID (Phase 4) are still to do.
+## Layout
 
-## Hard constraint: local-only
+```
+armenian-transcriber/      repo root: README.md (overview: layout, how the work was done), .gitignore
+  armtranscribe/           the program: package app/, tests/, scripts/, requirements, setup.command, README.md (setup, usage, models),
+                           models/ and .venv/ (both gitignored; .venv is shared with tools/)
+  docs/PLAN.md             design plan — source of truth for phases, parameters, tuning targets;
+                           read the relevant phase before implementing a module
+  docs/TECH_DEBT.md        known weaknesses / open issues per phase
+  chats/                   AI chat sessions, exported once at the very end (one .md each, full and unedited)
+  tools/                   development tools, not part of the program: record_test.py (does my mic / BlackHole routing work);
+                           benchmark data prep: fetch_fleurs.py, make_podcast_set.py (podcast clips + YouTube-caption references);
+                           build_live_test.py part1|part2 (recordings/live_test sessions -> part1/part2 test sets);
+                           replay_live.py <wav> [sec] (replay audio through the live Pipeline in real time: latency p50/p95);
+                           asr_bakeoff/ (13-model ASR comparison harness + results, see its README)
+  recordings/              (gitignored) test audio: record_test output, benchmark clips (pass to armtranscribe/scripts/bench_*.py by path)
+                           live_test/: script.tsv (31 reference lines) + --save-audio sessions -> part1/ (20 phrases), part2/ (11-line monologue, held out)
+                           podcast/: Rearrange #326 mp3, youtube_auto_hy.txt (YouTube auto captions), yt_set/ (22 min, 10 clips)
+                           fleurs_hy/: 20 FLEURS test clips
+  .claude/                 Claude Code hooks (local-only import guard, pytest after .py edits)
+```
 
-Transcription, translation, and speaker ID must run entirely on-device. Never add cloud speech/translation/LLM APIs or runtime network calls. `cli.py` sets `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` / `HF_DATASETS_OFFLINE=1` before any model import — keep that ordering (env vars must be set before `transformers`/`huggingface_hub` are imported). The only code allowed to hit the network is `scripts/download_models.py` (one-time weight download into `models/`). Model weights and audio files (`*.wav`, etc.) are gitignored and must never be committed.
+- Run git commands from this directory (the repo root).
+- Don't copy plan, tools, recordings or `.claude/` into `armtranscribe/`. Keep `armtranscribe/` self-contained: no references to files outside it.
+- Never commit `recordings/`, weights, the `*.docx` brief or third-party transcripts; the `.gitignore` covers them, check `git status` before committing.
+- `tools/` scripts import the package from `armtranscribe/` via `sys.path`.
 
-## Commands
-
-Environment: Python 3.11 venv, Apple Silicon (default ASR runs on the CPU via `onnx-asr`; Whisper alternatives use `mlx-whisper`). Run everything from this directory with the venv activated.
+## Commands (from this directory)
 
 ```bash
-pip install -r requirements.txt pytest       # pytest is not in requirements.txt
-python -m pytest                              # all tests
-python -m pytest tests/test_output.py::test_render   # single test
-python -m armtranscribe --list-devices
-python -m armtranscribe [--mic <id|name>] [--asr ...] [--mt ...] [--debug] [--save-audio DIR]   # live; no --mic = system default input
-python -m armtranscribe.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file -> HY -> EN
-python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
-python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv] [--vad]   # WER/CER (jiwer) + latency; --vad: cut long clips like live
-python scripts/bench_mt.py <manifest.tsv> [--asr-hyps hyp.tsv]               # chrF++/BLEU (sacrebleu) + latency
+armtranscribe/setup.command               # armtranscribe/.venv + requirements + default models
+source armtranscribe/.venv/bin/activate
+pip install pytest                        # dev only
+(cd armtranscribe && python -m pytest)
+python tools/record_test.py [--mic ...] [--system BlackHole] [-s 5]   # writes recordings/mic.wav, system.wav
 ```
 
-No linter/formatter is configured.
+What belongs where: tests of the code and its functionality (pytest, benchmarks of the app's models) are part of the project and live in `armtranscribe/`; checks of this machine's hardware and audio routing live in `tools/`.
 
-System audio comes from **BlackHole 2ch** via a macOS Multi-Output Device (speakers/headphones + BlackHole 2ch in Audio MIDI Setup). Claude can't hear or produce live audio here, so verify audio code with recorded WAVs or synthetic arrays.
+App commands (running the transcriber, model download, benchmarks) are in `armtranscribe/CLAUDE.md`.
 
-## Architecture
-
-```
-mic InputStream ──┐                                   ┌ source="mic"    → "Me"
-                  ├► resample to 16 kHz mono ► VAD ───┤
-BlackHole stream ─┘   (soxr, consumer thread)          └ source="system" → SpeakerTracker → "Speaker N"
-                                     │
-                     Segment queue → single ASR worker → MT worker → output.render
-```
-
-- **Concurrency**: plain threads + `queue.Queue`, no asyncio. PortAudio callbacks only `indata.copy()` into a queue — never block, resample, or run models in a callback. One ASR worker (GPU is single-use); segments processed in end-time order.
-- **Data types** (`models.py`): `Segment` (source, t_start/t_end in seconds since session start, float32 mono audio @ `SAMPLE_RATE`=16000) flows into the workers; `Result` (speaker, hy, en, latency) flows to `output.render`.
-- **Swappable backends** via `typing.Protocol` so benchmarks can compare models: `asr.Transcriber.transcribe(audio) -> str`, `translate.Translator.translate(hy) -> str`, `speakers.SpeakerTracker.assign(audio) -> str`. New model backends implement these; `--asr` / `--mt` select them.
-- **Default models** (chosen by bake-offs, numbers in README): ASR `fastconformer-hy-onnx` = NVIDIA `stt_hy_fastconformer_hybrid_large_pc` as ONNX int8 (`Vana-Labs/stt-fastconformer-armenian`), run by `onnx-asr` on the CPU provider only (`asr.NemoONNX`; writes punctuation + capitalisation). Alternative `whisper-turbo-hy-mlx` = `Chillarmo/whisper-large-v3-turbo-armenian` converted HF → MLX fp16 (Whisper with `language="hy"`, `temperature=0`, `condition_on_previous_text=False`, filter hallucinations / high `no_speech_prob`); MT `nllb-1.3b-ct2` = NLLB-200 distilled 1.3B in CTranslate2 int8 (`hye_Armn → eng_Latn`, beam 2, 8 threads); speaker embeddings SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`) + online cosine clustering.
-- `--asr` / `--mt` take a model name under `models/` (see `download_models.py --list`) or a path; `asr.load_transcriber` picks the backend from the dir's `config.json` (NeMo ONNX, MLX Whisper or MMS CTC), `translate.CT2Translator` handles NLLB and Marian dirs.
-- Benchmark manifests are header-less TSV `file<TAB>hy<TAB>en` with paths relative to the manifest; the data itself lives outside the repo.
-- **Latency target**: p95 segment-end → printed < 5 s. Main knobs are in the VAD (≈600 ms silence to end a segment, force-cut at ≈8 s, drop < 0.4 s).
-- Heavy imports (`sounddevice`, `torch`, models) are done lazily inside functions so `--list-devices` and tests stay fast.
-
-## Repo conventions
-
-- `chats/` holds exported Claude/Cowork session transcripts (one `.md` per session) — part of the project deliverable.
-- README sections marked `_TODO_` (setup, model choices with benchmark numbers, architecture, limitations) are to be filled in as phases complete.
+@armtranscribe/CLAUDE.md

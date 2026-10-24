@@ -1,0 +1,4 @@
+turbo-hy_current mlx ../../armtranscribe/models/whisper-turbo-hy-mlx ../../armtranscribe/.venv/bin/python
+mms-1b mms ../../armtranscribe/models/mms-1b-all ../../armtranscribe/.venv/bin/python
+whisper-turbo_base mlx ../../armtranscribe/models/whisper-large-v3-turbo-mlx ../../armtranscribe/.venv/bin/python
+whisper-large-v3_base mlx ../../armtranscribe/models/whisper-large-v3-mlx ../../armtranscribe/.venv/bin/python

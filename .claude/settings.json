@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "in=$(cat); f=$(printf %s \"$in\" | jq -r \".tool_input.file_path // \\\"\\\"\"); case \"$f\" in */app/*.py) body=$(printf %s \"$in\" | jq -r \".tool_input.content // .tool_input.new_string // \\\"\\\"\"); if printf %s \"$body\" | grep -Eq \"^[[:space:]]*(import|from)[[:space:]]+(requests|httpx|aiohttp|urllib3|urllib\\\\.request|http\\\\.client|websockets|openai|anthropic|boto3|botocore|google\\\\.cloud|azure|deepl|googletrans)\\\\b\"; then echo \"Blocked: network/cloud client import in app/. This project is local-only (see CLAUDE.md); only scripts/download_models.py may use the network.\" >&2; exit 2; fi;; esac",
+            "statusMessage": "Checking local-only rule..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_response.filePath // .tool_input.file_path\"); case \"$f\" in *.py) root=$(git -C \"$(dirname \"$f\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; py=\"$root/armtranscribe/.venv/bin/python\"; [ -x \"$py\" ] || exit 0; cd \"$root/armtranscribe\" && out=$(\"$py\" -m pytest -q -x 2>&1) || { echo \"$out\" | tail -20 >&2; exit 2; };; esac",
+            "timeout": 120,
+            "statusMessage": "Running pytest..."
+          }
+        ]
+      }
+    ]
+  }
+}

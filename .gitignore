@@ -15,9 +15,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Models and weights — never commit (one-time download via scripts/download_models.py)
-models/*
-!models/.gitkeep
+# Models and weights — never commit (one-time download via armtranscribe/scripts/download_models.py)
+armtranscribe/models/*
+!armtranscribe/models/.gitkeep
 pretrained_models/
 *.safetensors
 *.pt
@@ -26,7 +26,8 @@ pretrained_models/
 *.ckpt
 *.gguf
 
-# Audio / video — never commit
+# Audio / video — never commit; test recordings stay local
+recordings/
 *.wav
 *.mp3
 *.flac
@@ -39,6 +40,15 @@ pretrained_models/
 *.webm
 *.mp4
 *.mov
+
+# Benchmark working files (inputs frozen from recordings/, second venv, derived scores)
+tools/asr_bakeoff/data.pkl
+tools/asr_bakeoff/scores.json
+tools/asr_bakeoff/venv2/
+
+# Assignment brief and third-party texts kept next to the work, not ours to publish
+/*.docx
+/Rearrange*
 
 # Secrets and local config
 .env
