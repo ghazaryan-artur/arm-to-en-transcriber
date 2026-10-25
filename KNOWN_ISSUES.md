@@ -35,7 +35,7 @@ Problems we know about, understand, and could fix, but deliberately don't within
 - **Numbers the ASR mishears** (`հիսուներկու` → `մինիսուն երկու`) can't be repaired by the digit conversion. A lone number with a case ending is ambiguous (`Տասներկուսին` → "The 12th." where "At twelve." was meant).
 - **Names outside the built-in list** (without `ջան`) are still translated as words.
 - **Overlapping speech** on one stream can't be separated.
-- **Noise read as an abbreviation** (`Հովհ.` → "How can we do this?") still passes the single-letter filter.
+- **Non-speech sounds** are dropped only when the ASR writes one of the known outputs (`Հովհ.`, the call app's join / leave sound); other sounds can still come out as a short word.
 - **Western Armenian** is not supported or tested.
 
 ## Performance and resources

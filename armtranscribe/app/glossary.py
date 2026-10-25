@@ -189,6 +189,12 @@ def _literary(m: re.Match) -> str:
 EN_FIXES = [(re.compile(r"\bdrachma(s?)\b", re.IGNORECASE), r"dram\1")]
 
 
+# What the ASR writes for non-speech sounds: `Հովհ.` came out of the system stream in 4 of 5 Zoom / Meet
+# sessions, at the start or end of the call (the call app's join / leave sound), once `«Մովհ է.` from
+# the mic. Not words anyone says, so the line is dropped. Keys are normalised with _norm.
+NOISE_OUTPUTS = {"հովհ", "մովհ", "մովհ է"}
+
+
 def _norm(hy: str) -> str:
     """Lowercase, no punctuation. Armenian stress / question marks sit inside the word (Ապրե՛ս,
     Ո՞նց), so they are deleted rather than turned into spaces."""
@@ -209,8 +215,8 @@ def _lone_number(sentence: str) -> str | None:
 
 
 class NamedTranscriber:
-    """Capitalises known names, drops the dialogue dash the ASR sometimes starts a line with and
-    outputs of a single letter."""
+    """Capitalises known names, drops the dialogue dash the ASR sometimes starts a line with,
+    outputs of a single letter and what it writes for non-speech sounds (NOISE_OUTPUTS)."""
 
     def __init__(self, asr, names: Names):
         self.asr, self.names = asr, names
@@ -218,6 +224,8 @@ class NamedTranscriber:
     def transcribe(self, audio) -> str:
         text = re.sub(r"^[֊\-–—]\s*", "", self.asr.transcribe(audio))
         if len(re.findall(r"\w", text)) < 2:  # "Հ.", "Կ": noise read as a letter, MT turns it into "C. What is it?"
+            return ""
+        if _norm(text) in NOISE_OUTPUTS:  # "Հովհ." -> "How can we do this?"
             return ""
         return self.names.capitalize(text)
 

@@ -171,3 +171,15 @@ def test_colloquial_demonstratives_become_literary():
     mt.calls.clear()
     GlossaryTranslator(mt).translate("Էրեկ էսել էրկու ժամ սպասեցի։")  # էրեկ, էրկու, էսել are not demonstratives
     assert mt.calls == ["Էրեկ էսել էրկու ժամ սպասեցի։"]
+
+
+def test_non_speech_outputs_are_dropped():
+    for noise, kept in [("Հովհ.", "Հովհաննեսը եկավ։"), ("«Մովհ է.", "Մովսեսը եկավ։")]:
+        class ASR:
+            def __init__(self, text):
+                self.text = text
+
+            def transcribe(self, audio):
+                return self.text
+        assert NamedTranscriber(ASR(noise), Names()).transcribe(None) == ""
+        assert NamedTranscriber(ASR(kept), Names()).transcribe(None) != ""
