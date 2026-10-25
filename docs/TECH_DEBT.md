@@ -196,6 +196,8 @@ Done (no new calls: Artur keeps real calls for the final rehearsal; checked with
 - **Measure**: `--debug` exit summary has latency p50/p95 and asr / mt / speaker p50/p95.
 - **Robustness**: Ctrl+C while loading or a second Ctrl+C while finishing → "Stopped.", no traceback, recorder closed; device not found / won't open → error with the list of input devices; a device that won't open at its default rate is tried at 48 / 44.1 / 16 kHz; a device that stops delivering audio for 3 s (unplugged headset) → warning, and "back" when it returns (the stream is not reopened: restart the app); empty blocks from the resampler no longer reach the silence check.
 
+- **Latency after Phase 5** (measured from the end of the spoken phrase, as the brief defines it — `2381b61`; before, from the segment end, 0.2 s low): call 6 system audio replayed in real time on the MacBook Air (`tools/replay_live.py`, Zoom not running), 2 min, 10 lines: **p50 2.05 s, p95 3.23 s**. Under the 5 s limit with ~1.8 s to spare at p95; the call app's CPU load can still eat into that (call 6 live: p95 6.2 s before the fixes).
+
 ### Open
 - The fallback model needs ~0.6 GB more RAM (both NLLB models loaded); not measured on the MacBook Air.
 - A device that disappears is not reopened automatically.
