@@ -10,8 +10,8 @@ armenian-transcriber/      repo root: README.md (overview: layout, results, how 
                            models/ and .venv/ (both gitignored; .venv is shared with tools/)
   docs/PLAN.md             design plan — source of truth for phases, parameters, tuning targets;
                            read the relevant phase before implementing a module
-  chats/                   AI sessions, exported once at the very end (one .md each, full and unedited):
-                           chats/cowork/ (Claude Cowork), chats/claude/ (Claude Code)
+  chats/                   AI sessions, exported once at the very end (one .md each; cowork: messages and replies only):
+                           prefixed by tool: "chats/cowork - <date>_<title>.md" (Claude Cowork), "chats/claude - …" (Claude Code)
   tools/                   development tools, not part of the program: record_test.py (does my mic / BlackHole routing work);
                            benchmark data prep: fetch_fleurs.py, make_podcast_set.py (podcast clips + YouTube-caption references);
                            build_live_test.py part1|part2 (recordings/live_test sessions -> part1/part2 test sets);

@@ -80,7 +80,7 @@ Harness and per-clip hypotheses of the ASR run: [`tools/asr_bakeoff/`](tools/asr
 | [`docs/PLAN.md`](docs/PLAN.md) | The implementation plan the work followed, phase by phase (0 setup → 6 README and rehearsal), with the parameters and risks decided up front. |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | Problems we know about and could fix but deliberately leave within this assignment (unplugged headsets, a new speaker's first short replies …), each with the reason and the fix. |
 | [`tools/`](tools/) | Development tools around the app (not needed to run it), see below. |
-| [`chats/`](chats/) | The complete AI sessions of this project, one Markdown file per session, unedited: [`chats/cowork/`](chats/cowork/) from Claude Cowork, [`chats/claude/`](chats/claude/) from Claude Code. |
+| [`chats/`](chats/) | The AI sessions of this project, one Markdown file per session; the file name's prefix names the tool: `cowork - …` from Claude Cowork, `claude - …` from Claude Code (the user's messages and Claude's replies). |
 | [`CLAUDE.md`](CLAUDE.md), [`armtranscribe/CLAUDE.md`](armtranscribe/CLAUDE.md) | Project instructions for the AI assistant: layout, the local-only rule, commands, architecture and conventions. Kept up to date as the project went on; also a compact technical overview for a human reader. |
 | [`.claude/settings.json`](.claude/settings.json) | Assistant hooks: blocks network / cloud-API imports in `armtranscribe/app/` (local-only rule) and runs the tests after every Python edit. |
 
@@ -95,6 +95,7 @@ Harness and per-clip hypotheses of the ASR run: [`tools/asr_bakeoff/`](tools/asr
 | `replay_live.py` | Replays a recording through the live pipeline in real time and reports latency p50 / p95; used instead of new test calls. |
 | `bench_mt_threads.py` | NLLB speed vs CPU thread count, run with Zoom open. |
 | `numbers_mt/` | Numbers in translation: 30 sentences with numbers, NLLB with and without the digit conversion (`eval.py`, results in `last_run.txt`). |
+| `export_session.py` | Exports the current Cowork chat (its `.jsonl` transcript) into a Markdown file in `chats/` (`claude - …` / `cowork - …`): the user's messages and Claude's replies, without thinking, tool calls or notes between them. |
 | `asr_bakeoff/` | Harness and per-clip results of the 13-model ASR comparison (Whisper fine-tunes, MMS, SeamlessM4T, w2v-BERT, Gemma, FastConformer); source of the ASR table in the app README. |
 
 ## How the work was done
@@ -108,7 +109,7 @@ All of the work was done with Claude, in two tools:
 - **Claude Cowork** (the desktop app, linked to the repository on the MacBook): planning, research, model choice, analysis of the test calls and recordings, most of the code, the READMEs.
 - **Claude Code** (in the terminal, in this repository; [`CLAUDE.md`](CLAUDE.md) and the [`.claude/`](.claude/) hooks are its project setup): coding sessions run directly on the Mac, where the models and audio devices are.
 
-The full sessions of both are in [`chats/cowork/`](chats/cowork/) and [`chats/claude/`](chats/claude/).
+The sessions of both are in [`chats/`](chats/); each file name starts with the tool it comes from: `cowork - <date>_<title>.md` for Claude Cowork, `claude - <date>_<title>.md` for Claude Code.
 
 ## Not in the repository
 
