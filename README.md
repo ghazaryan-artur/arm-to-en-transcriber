@@ -80,7 +80,7 @@ Harness and per-clip hypotheses of the ASR run: [`tools/asr_bakeoff/`](tools/asr
 | [`docs/PLAN.md`](docs/PLAN.md) | The implementation plan the work followed, phase by phase (0 setup → 6 README and rehearsal), with the parameters and risks decided up front. |
 | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | Problems we know about and could fix but deliberately leave within this assignment (unplugged headsets, a new speaker's first short replies …), each with the reason and the fix. |
 | [`tools/`](tools/) | Development tools around the app (not needed to run it), see below. |
-| [`chats/`](chats/) | The complete AI chat sessions of this project (Claude Cowork), one Markdown file per session, unedited. |
+| [`chats/`](chats/) | The complete AI sessions of this project, one Markdown file per session, unedited: [`chats/cowork/`](chats/cowork/) from Claude Cowork, [`chats/claude/`](chats/claude/) from Claude Code. |
 | [`CLAUDE.md`](CLAUDE.md), [`armtranscribe/CLAUDE.md`](armtranscribe/CLAUDE.md) | Project instructions for the AI assistant: layout, the local-only rule, commands, architecture and conventions. Kept up to date as the project went on; also a compact technical overview for a human reader. |
 | [`.claude/settings.json`](.claude/settings.json) | Assistant hooks: blocks network / cloud-API imports in `armtranscribe/app/` (local-only rule) and runs the tests after every Python edit. |
 
@@ -104,7 +104,11 @@ Harness and per-clip hypotheses of the ASR run: [`tools/asr_bakeoff/`](tools/asr
 3. **Real calls as tests**: recorded test calls with friends (Zoom, up to 3 people) drove the segmentation, line merging, echo filter, names and loanwords fixes; each finding with its before / after numbers is in the commit messages and in the chats. After that, changes were checked on the saved recordings with `tools/replay_live.py` rather than new calls.
 4. **Unit tests** with synthetic audio and fake models (89 tests) for the VAD, echo filter, clustering, glossary, pipeline and output.
 
-Every step was done with Claude (Cowork), the full sessions are in [`chats/`](chats/).
+All of the work was done with Claude, in two tools:
+- **Claude Cowork** (the desktop app, linked to the repository on the MacBook): planning, research, model choice, analysis of the test calls and recordings, most of the code, the READMEs.
+- **Claude Code** (in the terminal, in this repository; [`CLAUDE.md`](CLAUDE.md) and the [`.claude/`](.claude/) hooks are its project setup): coding sessions run directly on the Mac, where the models and audio devices are.
+
+The full sessions of both are in [`chats/cowork/`](chats/cowork/) and [`chats/claude/`](chats/claude/).
 
 ## Not in the repository
 
