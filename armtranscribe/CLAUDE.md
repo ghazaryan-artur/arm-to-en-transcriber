@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the program in `armtranscribe/` (the repo root is the workspace above it).
 
-Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 3 done — live mic + system audio → HY → EN works (`python -m app --system BlackHole`, mic labelled `Me`, system audio `System`, one VAD segmenter per stream); file mode uses the same streaming VAD segmenter. Speaker ID on the system side (Phase 4) is still to do.
+Live Armenian → English transcriber: captures mic + system audio on macOS, transcribes Armenian, translates to English, prints to the terminal labelled by speaker. Status: Phase 4 done — live mic + system audio → HY → EN works (`python -m app --system BlackHole`, mic labelled `Me`, system audio `Speaker N` via `speakers.OnlineSpeakerTracker`, one VAD segmenter per stream); file mode uses the same streaming VAD segmenter (`--speakers` labels speakers). Next: Phase 5 (latency & hardening).
 
 ## Hard constraint: local-only
 
@@ -24,6 +24,7 @@ python -m app.file <audio> [--asr ...] [--mt ...] [--debug]   # offline: file ->
 python scripts/download_models.py [--bench | --list | <names>]        # one-time download/convert into models/
 python scripts/bench_asr.py <manifest.tsv> [--models ...] [--save hyp.tsv] [--vad]   # WER/CER (jiwer) + latency; --vad: cut long clips like live
 python scripts/bench_mt.py <manifest.tsv> [--asr-hyps hyp.tsv]               # chrF++/BLEU (sacrebleu) + latency
+python scripts/tune_speakers.py <conv.wav> [--thresholds ...] [--timeline]  # speaker clustering vs threshold
 ```
 
 No linter/formatter is configured.

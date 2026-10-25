@@ -1,6 +1,6 @@
 """One-time setup: download model weights into models/ (the only step that uses the network).
 
-    python scripts/download_models.py                 # default ASR + MT
+    python scripts/download_models.py                 # default ASR + MT + speaker embeddings
     python scripts/download_models.py --bench         # every benchmark candidate (~20 GB download)
     python scripts/download_models.py nllb-1.3b-ct2   # specific models (see --list)
 
@@ -32,8 +32,12 @@ MODELS = {
     "nllb-600m-ct2": ("ct2", "facebook/nllb-200-distilled-600M", ["sentencepiece.bpe.model"]),
     "nllb-1.3b-ct2": ("ct2", "facebook/nllb-200-distilled-1.3B", ["sentencepiece.bpe.model"]),
     "opus-mt-hy-en-ct2": ("ct2", "Helsinki-NLP/opus-mt-hy-en", ["source.spm", "target.spm"]),
+    # Speaker embeddings
+    "ecapa-voxceleb": ("snapshot", "speechbrain/spkrec-ecapa-voxceleb", [
+        "hyperparams.yaml", "embedding_model.ckpt", "mean_var_norm_emb.ckpt", "classifier.ckpt", "label_encoder.txt",
+    ]),
 }
-DEFAULT = ["fastconformer-hy-onnx", "nllb-1.3b-ct2"]
+DEFAULT = ["fastconformer-hy-onnx", "nllb-1.3b-ct2", "ecapa-voxceleb"]
 
 # HF transformers Whisper parameter names -> mlx_whisper (OpenAI-style) names
 HF_TO_MLX = [

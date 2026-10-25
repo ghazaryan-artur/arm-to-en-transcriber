@@ -1,6 +1,6 @@
 """Offline mode: transcribe and translate an audio file, printed in the live output format.
 
-    python -m app.file recording.wav [--asr ...] [--mt ...] [--debug]
+    python -m app.file recording.wav [--asr ...] [--mt ...] [--speakers [--spk-threshold 0.45]] [--debug]
 
 Long files are cut into speech segments by the live VAD segmenter, fed as if streamed,
 so the segmentation matches the live mode.
@@ -8,7 +8,7 @@ so the segmentation matches the live mode.
 import argparse
 import time
 
-from app.cli import add_model_args, resolve_model  # first: sets offline mode
+from app.cli import add_model_args, add_speaker_args, load_speaker_tracker, resolve_model  # first: offline mode
 
 import numpy as np  # noqa: E402
 
@@ -33,6 +33,9 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("path", help="audio file (wav/flac/...)")
     add_model_args(p)
+    add_speaker_args(p)
+    p.add_argument("--speakers", action="store_true",
+                   help="label speakers as for system audio (Speaker N) instead of one 'Speaker'")
     p.add_argument("--debug", action="store_true", help="print per-stage timings")
     args = p.parse_args()
 
@@ -42,6 +45,7 @@ def main() -> None:
 
     asr = load_transcriber(resolve_model(args.asr))
     mt = load_translator(resolve_model(args.mt))
+    tracker = load_speaker_tracker(args) if args.speakers else None
     segments = split_speech(load_audio(args.path))
     if not segments:
         print("no speech found")
@@ -52,10 +56,15 @@ def main() -> None:
         t1 = time.perf_counter()
         if not hy:
             continue
+        speaker, spk_s, spk_info = "Speaker", 0.0, ""
+        if tracker:
+            speaker = tracker.assign(seg.audio)
+            spk_s, spk_info = time.perf_counter() - t1, str(tracker.last)
+        t1s = time.perf_counter()
         en = mt.translate(hy)
         t2 = time.perf_counter()
-        r = Result(seg.t_start, "Speaker", hy, en, latency=t2 - t0, audio_s=seg.t_end - seg.t_start,
-                   asr_s=t1 - t0, mt_s=t2 - t1)
+        r = Result(seg.t_start, speaker, hy, en, latency=t2 - t0, audio_s=seg.t_end - seg.t_start,
+                   asr_s=t1 - t0, mt_s=t2 - t1s, spk_s=spk_s, spk_info=spk_info)
         print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
 
 

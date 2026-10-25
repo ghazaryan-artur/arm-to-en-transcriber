@@ -24,3 +24,5 @@ class Result:
     audio_s: float = 0.0 # segment duration and per-stage times, for --debug
     asr_s: float = 0.0
     mt_s: float = 0.0
+    spk_s: float = 0.0   # speaker embedding + clustering (system audio only)
+    spk_info: str = "" # how the speaker was chosen, similarities to each centroid

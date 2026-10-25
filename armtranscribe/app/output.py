@@ -12,7 +12,10 @@ def render(r: Result) -> str:
 
 
 def render_timings(r: Result) -> str:
-    return f"  [{r.audio_s:.1f} s audio: asr {r.asr_s:.2f} s, mt {r.mt_s:.2f} s, latency {r.latency:.2f} s]\n"
+    spk = f", spk {r.spk_s:.2f} s" if r.spk_s else ""
+    info = f"\n  [speaker: {r.spk_info}]" if r.spk_info else ""
+    return (f"  [{r.audio_s:.1f} s audio: asr {r.asr_s:.2f} s{spk}, mt {r.mt_s:.2f} s, "
+            f"latency {r.latency:.2f} s]{info}\n")
 
 
 def percentile_summary(latencies: list[float]) -> str:

@@ -12,6 +12,7 @@ for _var in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE"):
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 DEFAULT_ASR = "fastconformer-hy-onnx"
 DEFAULT_MT = "nllb-1.3b-ct2"
+DEFAULT_SPK = "ecapa-voxceleb"
 
 
 def resolve_model(spec: str) -> str:
@@ -27,12 +28,32 @@ def add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--mt", default=DEFAULT_MT, help=f"translation model name in models/ or path (default {DEFAULT_MT})")
 
 
+def add_speaker_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--speaker-model", default=DEFAULT_SPK,
+                   help=f"speaker embedding model name in models/ or path (default {DEFAULT_SPK})")
+    p.add_argument("--spk-threshold", type=float, default=0.45,
+                   help="cosine similarity to join an existing speaker; lower = fewer speakers (default 0.45)")
+
+
+def load_speaker_tracker(args):
+    """ECAPA embedder + online clustering, warmed up (the first call is slow)."""
+    import numpy as np
+
+    from app.models import SAMPLE_RATE
+    from app.speakers import OnlineSpeakerTracker, ecapa_embedder
+
+    embed = ecapa_embedder(resolve_model(args.speaker_model))
+    embed(np.zeros(2 * SAMPLE_RATE, np.float32))  # warm-up straight on the embedder: creates no speaker
+    return OnlineSpeakerTracker(embed, threshold=args.spk_threshold)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="app", description="Live Armenian -> English transcription")
     p.add_argument("--list-devices", action="store_true", help="print audio devices and exit")
     p.add_argument("--mic", help="microphone device id or name")
     p.add_argument("--system", help="system-audio (loopback) device id or name, e.g. BlackHole")
     add_model_args(p)
+    add_speaker_args(p)
     p.add_argument("--debug", action="store_true", help="print per-stage timings")
     p.add_argument("--save-audio", metavar="DIR",
                    help="save the session (streams, segments, segments.tsv) into a new subdir of DIR")
@@ -69,6 +90,7 @@ def main() -> None:
     mt = load_translator(resolve_model(args.mt))
     asr.transcribe(np.zeros(SAMPLE_RATE, np.float32))  # warm-up: the first call loads weights
     mt.translate("Բարև")
+    speakers = load_speaker_tracker(args) if system is not None else None
 
     latencies = []
 
@@ -80,12 +102,13 @@ def main() -> None:
     if system is not None:
         captures["system"] = Capture(system)
     recorder = Recorder(args.save_audio) if args.save_audio else None
-    pipeline = Pipeline(asr, mt, emit, recorder)
+    pipeline = Pipeline(asr, mt, emit, recorder, speakers, debug=args.debug)
     for source, capture in captures.items():
         pipeline.add_source(capture, Segmenter(source))  # one VAD per stream: Silero keeps state
     print(f"Mic: {captures['mic'].name}" + ("" if args.mic else " (system default)"))
     if "system" in captures:
-        print(f"System audio: {captures['system'].name}")
+        print(f"System audio: {captures['system'].name}"
+              + f" (speakers: threshold {args.spk_threshold})")
     if recorder:
         print(f"Saving to {recorder.dir}")
     print("Listening, Ctrl+C to stop\n", flush=True)

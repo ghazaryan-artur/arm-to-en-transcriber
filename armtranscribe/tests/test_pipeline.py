@@ -103,3 +103,64 @@ def test_two_sources_are_labelled_and_both_flushed():
     assert mic.stopped and system.stopped
     assert sorted(r.speaker for r in results) == ["Me", "Me", "Me", "System", "System"]
     assert sorted(r.hy for r in results) == [f"hy{i}" for i in range(1, 6)]
+
+
+def test_system_segments_get_speaker_labels_mic_stays_me():
+    class FakeTracker:
+        def __init__(self):
+            self.n, self.last = 0, "match"
+
+        def assign(self, audio):
+            self.n += 1
+            return f"Speaker {self.n}"
+
+    results = []
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(THREE_UTTERANCES[: 16000 * 3])
+    p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=FakeTracker())
+    p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
+    p.add_source(system, Segmenter("system", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert sorted(r.speaker for r in results) == ["Me", "Me", "Me", "Speaker 1", "Speaker 2"]
+    assert all((r.spk_info == "match") == r.speaker.startswith("Speaker") for r in results)
+
+
+def test_speaker_error_falls_back_to_system_label(capsys):
+    class Broken:
+        def assign(self, audio):
+            raise RuntimeError("boom")
+
+    results = []
+    p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=Broken())
+    p.add_source(FakeCapture(THREE_UTTERANCES[: 16000 * 3]), Segmenter("system", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert [r.speaker for r in results] == ["System", "System"]
+    assert "Speaker ID error" in capsys.readouterr().err
+
+
+def test_warns_once_when_system_stream_is_silent(capsys):
+    import numpy as np
+
+    from app import pipeline as pl
+
+    silence = np.zeros(int(16000 * (pl.SILENT_WARN_S + 2)), np.float32)
+    for source, warns in (("system", 1), ("mic", 0)):
+        p = Pipeline(FakeASR(), FakeMT(), lambda r: None)
+        p.add_source(FakeCapture(silence), Segmenter(source, speech_prob=fake_prob))
+        p.start()
+        time.sleep(0.3)
+        p.stop()
+        assert capsys.readouterr().err.count("no sound on the system-audio device") == warns
+
+
+def test_debug_reports_segments_with_no_text(capsys):
+    class Silent(FakeASR):
+        def transcribe(self, audio):
+            return ""
+
+    p = Pipeline(Silent(), FakeMT(), lambda r: None, debug=True)
+    p.add_source(FakeCapture(THREE_UTTERANCES), Segmenter("system", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert capsys.readouterr().err.count("ASR returned no text") == 3

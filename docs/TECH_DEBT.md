@@ -103,7 +103,41 @@ Add new items under the phase where they appeared; move fixed ones to "Resolved"
 - **Force-cut splits words.** A 9 s FLEURS sentence through BlackHole was cut inside `հիմնականում` → `հիմնական` | `կանում`. Same root cause as the Phase 2 force-cut item (cut at the lowest-energy frame, not at a pause).
 - **Two streams, two clocks.** Each Segmenter counts its own samples since its stream started; BlackHole and the mic are separate CoreAudio clocks. Lines from the two sources at the same moment can be printed in either order (seen: `System` 00:01:09 before `Me` 00:01:08). Fine for a 10–20 min session; drift would matter only for hour-long ones.
 - **Silent BlackHole is not reported.** If the Multi-Output Device isn't the output (it was not, at the first test), the system stream is digital silence and the app just shows no `System` lines.
-  → Warn once if the system stream has been all-zero for ~30 s ("is the Multi-Output Device selected as output?").
+  → Done (Phase 4): the pipeline warns once after 15 s of digital silence on the system stream. Happened again in the first Phase 4 live test: output was the headphones, not the Multi-Output Device.
+- **Routing is a fixed Multi-Output Device and doesn't follow the output.** Found in the Phase 4 live test: with the headphones switched off, the Multi-Output (headphones + BlackHole) sent sound only to BlackHole — the app worked, the user heard nothing; without headphones the user needs a different Multi-Output (speakers + BlackHole). Plugging headphones in also makes macOS switch the output to them directly, bypassing the Multi-Output → BlackHole goes silent (now at least warned about after 15 s). Won't fix in this project.
+  → Workaround: two Multi-Output Devices (headphones + BlackHole, speakers + BlackHole), pick one in the menu-bar sound menu before the call.
+  → Proper fix: capture system audio with Core Audio process taps (macOS 14.4+) via a small Swift helper piping PCM to the app — no BlackHole / Multi-Output, any output device works, switching is automatic. Needs the "System Audio Recording" permission; ~3–4 h incl. debugging on the Mac.
+- **No system-audio-only mode.** The mic is always captured. Listening to a call on speakers with the mic muted in Meet, the app still records the mic, hears the other side from the speakers and prints it a second time as `Me`. Won't fix now.
+  → `--no-mic` flag (~10 min), or the duplicate filter above.
+
+---
+
+## Phase 4 — speaker ID on system audio
+
+Tuned on 3 clips of the Rearrange #326 podcast (`recordings/podcast/excerpt_10-15min.wav`, `yt_set/yt_11m11s.wav`, `yt_set/yt_45m10s.wav`; 9 min, 2 people) with `scripts/tune_speakers.py`. Same voice vs its centroid 0.6–0.9, other voice 0.0–0.35; thresholds 0.35–0.55 give identical labels, 0.65 splits one person into up to 6. Defaults: threshold 0.45, new speaker only from a segment ≥ 3 s. Result: exactly 2 speakers in each clip. Cross-clip check: centroids of the same person from different clips agree at 0.89–0.99.
+
+### Weaknesses
+
+- **Small tuning set, no ground truth.** One podcast, two male voices, labels checked by ear only (no speaker-annotated reference, no DER).
+  → Label 5–10 min by hand (start/end/speaker), compute DER; add a recording with 3 people and a female voice.
+- **Similar voices are hard to tell apart by ear, the model separates them.** In `yt_45m10s` 01:19–01:42 the user first heard the same person as before; the model gave a new speaker (similarity 0.01–0.27 to the first voice, 0.89 to the second podcast participant from the other clips). Checked by ear against `excerpt_10-15min` 00:00–00:23 → the model was right. Takeaway: the threshold isn't the weak spot here; checking the labels is.
+- **Phantom speakers from short fragments.** A 2.8 s laugh / cross-talk fragment (`yt_45m10s` 00:55) matched nobody and became `Speaker 2`, so the real second person got number 3. Fixed by `min_new_s=3.0`. Cost: a new person's first replies < 3 s are attributed to the nearest known speaker.
+  → A pending-speaker state: open a candidate on a short unknown segment and confirm it only when a second segment matches; label it with the nearest speaker until then.
+- **One label per segment.** A segment with a speaker change scores ~0.6 against both centroids (`excerpt` 03:13: 0.62 / 0.59; `yt_11m11s` 02:02: 0.57 / 0.65) and goes entirely to one of them.
+  → Embed 1.5 s sub-windows, detect the change point, split the segment before ASR; or a shorter `max_segment_s` for the system stream.
+- **First live test was invalid.** Two men in a video through BlackHole: everything went to `Speaker 1` (0.65–0.68) and the ASR text was gibberish — broken routing (headphones off inside the Multi-Output). On Mac `spk` = 0.05–0.08 s per segment, negligible.
+- **One-word answers in fast turn-taking go to the asker.** Podcast 53:00–53:20 (host asks, guest answers `Չորս, չորս` and `բավական`), analysed offline (`recordings/podcast/cut_52m50s.wav`, Silero frames + 1 s ECAPA windows). The answers are not lost — they sit inside the host's segments:
+  - from 53:01.9 to 53:24 there is no pause ≥ 600 ms at all; the longest is 448 ms (just before `Չորս`), the guest answers `բավական` with < 150 ms gap. Pauses inside the host's own sentences are 200–400 ms, so no `min_silence_ms` separates the turns without chopping every sentence.
+  - the stream is therefore force-cut every 8 s; one cut (53:17.0) fell inside `բավական`: the first half stayed in the host's segment, the second started the next one, where ASR heard `Լավ`.
+  - 1 s windows do see the guest for ~0.5–0.75 s (guest 0.37–0.42 vs host 0.07–0.21), but the margin is small and a one-window flip also happens on the host's own pauses.
+  → Possible: sliding-window change detection (cut when ≥ 3 consecutive windows prefer another known speaker by > 0.15) before ASR; fragile on 0.5 s words, needs a labelled test set first. Force-cut at a pause instead of the quietest frame (Phase 2 item) would at least keep words whole. A real fix is a diarization model trained on turn-taking/overlap. Not doing it in this project.
+- **Live speaker ID confirmed (Phase 4).** Second live run with working routing (podcast, host + guest): guest `Speaker 1` at 0.72–0.84, host `Speaker 2` at 0.76–0.82, cross 0.02–0.30; checked against the YouTube captions, the disputed line at 53:30 (`Կարան տարբեր ձեւը ընկալեն…`) is the host, as labelled; the earlier phantom `Speaker 3` came from rewinding the video (scrubbing fragments of both voices in one segment). `--debug` now also prints segments dropped for empty ASR output.
+- **Not tested on call audio.** ECAPA is trained on VoxCeleb (interview audio); Zoom / Meet / Telegram compress and denoise the voice, which can lower same-speaker similarity.
+  → The rehearsal call (Phase 6): 10+ min with 2 people on the other side, check label stability; re-tune with `tune_speakers.py` on a `--save-audio` recording of it.
+- **Embedding latency on the Mac not measured.** ~0.5 s per segment on the cloud CPU used for tuning; runs in the ASR thread, so it adds to every system line.
+  → Check `spk` in `--debug` on the MacBook; if > 0.2 s, embed only the first 3 s of long segments or move it to its own thread.
+- **Speaker numbers live for one session**, depend on who speaks first; no enrolment of known voices. Centroids keep growing (running mean over the whole session) — fine for a call, slow to adapt if the audio changes mid-session.
+- **Short segments < 1 s** are not embedded and keep the previous label — wrong after a quick turn change ("Հա", "Լավ" from the other person).
 
 ---
 

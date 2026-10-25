@@ -4,7 +4,7 @@ Listens to the microphone and system audio, transcribes spoken Armenian, transla
 
 **Local-only rule:** transcription, translation and speaker identification run entirely on this machine. No cloud speech or translation APIs are used. Model weights are downloaded once during setup (`setup.command` → `scripts/download_models.py`, the only code that uses the network); at runtime the app runs in offline mode (`HF_HUB_OFFLINE=1`) and works with Wi-Fi turned off.
 
-> **Status: work in progress.** Done: live microphone + system audio → Armenian → English (mic lines labelled `Me`, system-audio lines `System`), file mode. Not yet: speaker identification on the system side (`Speaker 1`, `Speaker 2` …).
+> **Status: work in progress.** Done: live microphone + system audio → Armenian → English, mic lines labelled `Me`, system-audio lines by speaker (`Speaker 1`, `Speaker 2` …), file mode. Not yet: latency hardening (Phase 5).
 
 ## Setup
 
@@ -42,7 +42,7 @@ macOS cannot record its own output directly, so the call audio is routed through
 ```bash
 source .venv/bin/activate
 python -m app --list-devices        # the mic and "BlackHole 2ch" should both be listed
-python -m app --system BlackHole    # say something in Armenian ("Me" line), play an Armenian video ("System" line)
+python -m app --system BlackHole    # say something in Armenian ("Me" line), play an Armenian video ("Speaker 1" line)
 ```
 
 To check that nothing goes over the network, turn Wi-Fi off and run it again.
@@ -54,10 +54,12 @@ Run from this folder with the venv active (`source .venv/bin/activate`):
 ```bash
 python -m app --list-devices
 python -m app                          # live: default microphone only, lines labelled "Me"
-python -m app --system BlackHole       # live: microphone + system audio ("System"), the normal call setup
+python -m app --system BlackHole       # live: microphone + system audio ("Speaker 1", "Speaker 2" …), the normal call setup
+python -m app --system BlackHole --spk-threshold 0.4   # lower = fewer speakers (merges), higher = more (splits)
 python -m app --mic <id|name> --debug  # pick the mic; --debug prints per-stage timings and latency p50/p95 on exit
 python -m app --save-audio DIR         # also save the session: full stream, segments, segments.tsv (file, hy, en)
-python -m app.file recording.wav       # offline: transcribe + translate a file
+python -m app.file recording.wav       # offline: transcribe + translate a file (add --speakers to label speakers)
+python scripts/tune_speakers.py conv.wav --timeline     # speaker labels for several thresholds, to tune on a recording
 ```
 `--asr` / `--mt` select another model from `models/` (`python scripts/download_models.py --list`; fetch more with `python scripts/download_models.py <name>`). Stop with Ctrl+C: segments already captured are still finished.
 
@@ -67,6 +69,7 @@ python -m app.file recording.wav       # offline: transcribe + translate a file
 |---|---|---|
 | ASR | [`nvidia/stt_hy_fastconformer_hybrid_large_pc`](https://huggingface.co/nvidia/stt_hy_fastconformer_hybrid_large_pc) (FastConformer RNNT, 115M params, writes punctuation and capitalisation), ONNX int8 export by [`Vana-Labs/stt-fastconformer-armenian`](https://huggingface.co/Vana-Labs/stt-fastconformer-armenian) | `onnx-asr`, CPU |
 | Translation | [`facebook/nllb-200-distilled-1.3B`](https://huggingface.co/facebook/nllb-200-distilled-1.3B), CTranslate2 int8, `hye_Armn → eng_Latn`, beam 2 | `ctranslate2`, CPU |
+| Speaker ID (system audio) | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) (ECAPA-TDNN, 192-d embeddings) + online cosine clustering | `speechbrain` / PyTorch, CPU |
 
 The previous default ASR, [`Chillarmo/whisper-large-v3-turbo-armenian`](https://huggingface.co/Chillarmo/whisper-large-v3-turbo-armenian) converted to MLX, is still available as `--asr whisper-turbo-hy-mlx`.
 
@@ -123,12 +126,15 @@ NLLB beam size 1/2/4 gives chrF++ 65.0/66.0/66.0 (1.3B), so beam 2 is used.
 
 **Live latency** (2 min of the podcast replayed in real time through the live pipeline): segment end → printed p50 1.3 s, p95 2.1 s; ASR 0.04–0.1 s and MT 0.6–1.2 s per segment. With the previous Whisper default: p50 2.1 s, p95 10.7 s, the tail caused by Whisper and NLLB repetition loops.
 
+**Speaker ID** (`scripts/tune_speakers.py`, 3 podcast clips, 9 min, 2 people): the same voice scores 0.6–0.9 against its centroid, the other voice 0.0–0.35; thresholds 0.35–0.55 give identical labels, so the default 0.45 sits in the middle. Each clip ends with exactly 2 speakers; the same person's centroids from different clips agree at 0.89–0.99.
+
 ### Rejected alternatives
 - **Whisper `task="translate"`**: drops the Armenian transcript and translates worse than a dedicated MT model.
 - **SeamlessM4T v2 as ASR**: close to the default on the author's voice, but worse on the podcast, ~15× slower, and CC-BY-NC. Its direct speech → English translation is not evaluated yet.
 - **Gemma 4 E2B/E4B**: mixes in Georgian, Cyrillic and Sinhala characters when transcribing Armenian.
 - **MADLAD-400 3B**: possibly better MT, but ~3× the size/latency of NLLB-1.3B, which already uses most of the MT budget.
 - **Local LLM for MT** (Ollama Gemma/Qwen): slow and weak on Armenian at laptop sizes.
+- **pyannote diarization pipeline / diart** for speakers: built for offline or heavier streaming diarization, adds latency, and the pyannote weights are gated behind a Hugging Face token. One embedding per VAD segment is enough here, since the VAD already cuts at pauses. **Resemblyzer**: lighter but weaker embeddings.
 
 ## Architecture
 _TODO_
@@ -137,7 +143,9 @@ _TODO_
 - **Spontaneous, colloquial speech is much harder than read speech.** The ASR models were trained on read Common Voice / FLEURS sentences; Yerevan colloquial forms (`ա` for `է`, `էդ`, `էրկու`) and English tech loanwords (`ինթելիջենս`, `ռոբոտիքս`) are often misspelled, and NLLB then translates the misspelling ("Dune scenario" → "snow scenario"). With the FastConformer most podcast lines now keep their meaning, but CER against YouTube's captions is still ~18%.
 - **Proper names and English terms.** NLLB may still translate a name that is also a common word, and English loanwords written in Armenian script are often mistranslated (`բեթրիփեք` "battery pack" → "tripectin bacteria").
 - **ASR errors cascade into MT.** One wrong letter can change the meaning (`ՄԱԿ-ի` "UN's" → `մակի` → "mouse expert").
-- **Licenses.** NVIDIA FastConformer: CC-BY-4.0 (attribution to NVIDIA). NLLB-200: CC-BY-NC-4.0 (non-commercial).
+- **Licenses.** NVIDIA FastConformer: CC-BY-4.0 (attribution to NVIDIA). NLLB-200: CC-BY-NC-4.0 (non-commercial). SpeechBrain ECAPA: Apache-2.0.
 - **Echo.** The microphone is not echo-cancelled: with speakers, or very loud headphones, the other side is transcribed twice (`System` and `Me`). Use headphones at a normal volume.
 - **Overlapping speech.** When both sides talk at once, the mic segment also contains the other side, and the `Me` line mixes both.
-- _TODO: speaker ID on short segments, Western Armenian._
+- **Speaker ID works per segment.** A segment in which the speaker changes (fast turn-taking, no pause) gets one label. Segments under 1 s are too short for a reliable voice embedding and keep the previous label; a new speaker is only created from a segment of ≥ 3 s, so a new person's short first replies are attributed to someone already known (this keeps laughs and cross-talk fragments from creating phantom speakers).
+- **Speaker numbers are per session** and depend on who speaks first; there is no enrolment of known voices. Similar voices (same gender, similar pitch) can merge at a low threshold; noisy audio or music can split one person into two at a high one (`--spk-threshold`).
+- _TODO: Western Armenian._
