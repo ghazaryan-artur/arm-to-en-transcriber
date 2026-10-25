@@ -91,3 +91,9 @@ def test_ara_comma_is_hey():
     mt = EchoMT()
     GlossaryTranslator(mt, Names()).translate("Արա, էդ ինչ ես անում, արա")
     assert mt.calls[-1] == "Hey, էդ ինչ ես անում, արա"
+
+
+def test_r_and_rr_are_interchangeable_in_names():
+    n = Names()
+    assert n.capitalize("գոր մի երկու բան ասա") == "Գոռ մի երկու բան ասա"
+    assert n.latinize("Գորին ասա, Ռուբենը եկավ, Րուբեն") == "Gor-ին ասա, Ruben-ը եկավ, Ruben"

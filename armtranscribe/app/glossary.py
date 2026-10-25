@@ -82,11 +82,20 @@ def transliterate(name: str) -> str:
     return "".join(out).capitalize()
 
 
+def _key(word: str) -> str:
+    """Lookup key: lowercase, ռ = ր (the ASR mixes them up in names: Գոր for Գոռ)."""
+    return word.lower().replace("ռ", "ր")
+
+
+def _alt(name: str) -> str:
+    return re.sub("[րռ]", "[րռ]", re.escape(name.lower()))
+
+
 def _pattern(names) -> re.Pattern | None:
     """A whole word = one of `names` (any case) + a case ending; the longest name wins."""
     if not names:
         return None
-    alts = "|".join(re.escape(n) + (f"(?!{NAME_EXCEPTIONS[n]})" if n in NAME_EXCEPTIONS else "")
+    alts = "|".join(_alt(n) + (f"(?!{NAME_EXCEPTIONS[n]})" if n in NAME_EXCEPTIONS else "")
                     for n in sorted(names, key=len, reverse=True))
     sufs = "|".join(re.escape(s) for s in sorted(SUFFIXES, key=len, reverse=True))
     return re.compile(rf"(?<![\w-])({alts})({sufs})(?![\w-])", re.IGNORECASE)
@@ -102,19 +111,19 @@ class Names:
 
     def __init__(self, names=None, jan_only=None):
         names = names or COMMON_NAMES.split()
-        self._jan_only = {n.lower(): n for n in (jan_only if jan_only is not None else JAN_ONLY.split())}
+        self._jan_only = {_key(n): n for n in (jan_only if jan_only is not None else JAN_ONLY.split())}
         self.latin = {n: transliterate(n) for n in [*names, *self._jan_only.values()]}
-        self._by_lower = {n.lower(): n for n in names}
+        self._by_lower = {_key(n): n for n in names}
         self._pattern = _pattern(names)
 
     def _jan_name(self, word: str, sep: str | None) -> str | None:
         """The name in "<word> ջան", or None if <word> is not one."""
-        low = word.lower()
+        low = _key(word)
         if low in self._by_lower:
             return self._by_lower[low]
         if low in self._jan_only:
             return self._jan_only[low]
-        if sep and word[:1].isupper() and low not in NOT_NAMES:  # a rare name, written apart from ջան
+        if sep and word[:1].isupper() and word.lower() not in NOT_NAMES:  # a rare name, written apart from ջան
             return word
         return None
 
@@ -125,7 +134,7 @@ class Names:
 
         text = _JAN.sub(jan, text)
         if self._pattern:
-            text = self._pattern.sub(lambda m: repl(self._by_lower[m.group(1).lower()], m.group(2).lower()), text)
+            text = self._pattern.sub(lambda m: repl(self._by_lower[_key(m.group(1))], m.group(2).lower()), text)
         return text
 
     def capitalize(self, hy: str) -> str:
