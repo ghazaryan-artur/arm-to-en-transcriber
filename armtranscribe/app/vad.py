@@ -157,4 +157,5 @@ class Segmenter:
         if speech < self.min_speech:
             return None
         t_start = self._seg_start * FRAME_S
-        return Segment(self.source, t_start, t_start + end * FRAME_S, np.concatenate(self._seg[:end]))
+        return Segment(self.source, t_start, t_start + end * FRAME_S, np.concatenate(self._seg[:end]),
+                       speech_end=t_start + min(self._last_speech + 1, end) * FRAME_S)

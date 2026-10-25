@@ -37,6 +37,8 @@ def test_one_utterance_with_pre_roll_and_pad():
     assert s.t_start == pytest.approx(1.0 - 0.25, abs=FRAME_S)
     assert s.t_end == pytest.approx(2.0 + 0.2, abs=FRAME_S)
     assert len(s.audio) == pytest.approx((s.t_end - s.t_start) * 16000, abs=1)
+    assert s.speech_end == pytest.approx(2.0, abs=FRAME_S)  # latency counts from here, before the pad
+    assert s.phrase_end == s.speech_end
 
 
 def test_segment_ends_only_after_min_silence():

@@ -233,7 +233,7 @@ class Pipeline:
             seg, hy, asr_s, speaker, spk_s, spk_info = item
             line = self._line(seg, hy, speaker)
             text = " ".join(line.hy)
-            mt = self._pick_mt(self.clock() - seg.t_end)
+            mt = self._pick_mt(self.clock() - seg.phrase_end)
             t = time.perf_counter()
             try:
                 self._translate(line, mt)
@@ -245,7 +245,7 @@ class Pipeline:
                 if self.recorder:
                     self.recorder.write_segment(seg, hy, en)
                 self.emit(Result(line.t_start, speaker, text, en,
-                                 latency=self.clock() - seg.t_end, audio_s=line.audio_s,
+                                 latency=self.clock() - seg.phrase_end, audio_s=line.audio_s,
                                  asr_s=asr_s, mt_s=mt_s, spk_s=spk_s, spk_info=spk_info,
                                  line=line.id, merged=len(line.hy), mt_fast=mt is not self.mt))
             except Exception as e:  # a failing recorder / printer must not stop the session
