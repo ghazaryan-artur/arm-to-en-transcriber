@@ -265,3 +265,47 @@ def test_join_en():
     assert join_en("We hope", "that it works.") == "We hope that it works."
     assert join_en("Yes", ", of course.") == "Yes, of course."
     assert join_en("", "Hi.") == "Hi." and join_en("Hi.", "") == "Hi."
+
+
+def test_falls_back_to_fast_mt_while_behind_and_back_when_caught_up(capsys):
+    from app import pipeline as pl
+
+    class Named(FakeMT):
+        def __init__(self, name):
+            self.name = name
+
+        def translate(self, hy):
+            return f"{self.name}:{hy}"
+
+    lags = iter([0.5, pl.BEHIND_S + 1, 2.0, pl.CAUGHT_UP_S - 0.1, 0.5])
+    results = []
+    p = Pipeline(FakeASR(), Named("main"), results.append, mt_fast=Named("fast"))
+    p.add_source(FakeCapture(signal(*[(1.0, SPEECH), (3.0, SILENCE)] * 5)), Segmenter("mic", speech_prob=fake_prob))
+    pick = p._pick_mt
+    p._pick_mt = lambda lag: pick(next(lags))  # scripted lag instead of the wall clock
+    p.start()
+    p.stop()
+    assert [r.en.split(":")[0] for r in results] == ["main", "fast", "fast", "main", "main"]
+    assert [r.mt_fast for r in results] == [False, True, True, False, False]
+    err = capsys.readouterr().err
+    assert "behind, translating with the faster model" in err and "Caught up" in err
+
+
+def test_without_fast_mt_only_warns(capsys):
+    from app import pipeline as pl
+
+    p = Pipeline(FakeASR(), FakeMT(), lambda r: None)
+    assert p._pick_mt(pl.BEHIND_S + 1) is p.mt
+    assert "behind" in capsys.readouterr().err
+
+
+def test_warns_when_a_device_stops_delivering_audio(capsys, monkeypatch):
+    from app import pipeline as pl
+
+    monkeypatch.setattr(pl, "STALL_WARN_S", 0.2)
+    p = Pipeline(FakeASR(), FakeMT(), lambda r: None)
+    p.add_source(FakeCapture(THREE_UTTERANCES[:1600]), Segmenter("mic", speech_prob=fake_prob))
+    p.start()
+    time.sleep(0.5)  # FakeCapture has run dry: like an unplugged headset
+    p.stop()
+    assert capsys.readouterr().err.count("no audio from the mic device") == 1

@@ -61,6 +61,7 @@ def main() -> None:
     asr = load_transcriber(cli.resolve_model(args.asr))
     mt = load_translator(cli.resolve_model(args.mt))
     asr, mt = cli.with_glossary(asr, mt, args)
+    mt_fast = cli.load_fast_translator(args, mt)
     asr.transcribe(np.zeros(SAMPLE_RATE, np.float32))  # warm-up, as the live CLI does
     mt.translate("Բարև")
 
@@ -72,7 +73,7 @@ def main() -> None:
         terminal.show(r, render(r) + render_timings(r))
 
     src = RealtimeWav(audio)
-    pipeline = Pipeline(asr, mt, emit)
+    pipeline = Pipeline(asr, mt, emit, mt_fast=mt_fast)
     pipeline.add_source(src, Segmenter("mic"))
     pipeline.start()
     while src.pos < len(src.audio):

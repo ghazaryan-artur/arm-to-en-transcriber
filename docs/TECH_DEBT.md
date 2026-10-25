@@ -188,6 +188,18 @@ Echo filter dropped 2 leaked mic segments (xcorr 0.45–0.47); Gor and Aghas kep
 - **NLLB dropped the second sentence of a segment** ("…vibe coding. I like Grok." → first sentence only). **Fixed**: each sentence of a segment is translated separately (one- or two-word sentences stay with a neighbour). Live test chrF++ with the whole glossary (names, terms, short replies, sentence split): part 1 72.2 → 73.9, part 2 → 68.2 (66.5 before, older decoding settings).
 - Overlap: a `Me` segment with Artur talking while Gor's voice leaked in passed the echo filter (mixed text) — expected limit.
 
+## Phase 5 — latency & reliability (2026-10-25)
+
+Done (no new calls: Artur keeps real calls for the final rehearsal; checked with unit tests and a replay of call 6 through `tools/replay_live.py`):
+- **Backpressure**: lag at MT start ≥ 2.5 s → warning + `nllb-600m-ct2` (≈ 2× faster, `--mt-fast`) until the lag is ≤ 1 s; lines translated by it are marked in `--debug`, the exit summary counts them. Not exercised live yet (needs a real overload).
+- **Warm-up**: Silero VAD too (3 calls, then state reset; first call 0.16 s vs 0.04); "Ready" only after every model is loaded and warm.
+- **Measure**: `--debug` exit summary has latency p50/p95 and asr / mt / speaker p50/p95.
+- **Robustness**: Ctrl+C while loading or a second Ctrl+C while finishing → "Stopped.", no traceback, recorder closed; device not found / won't open → error with the list of input devices; a device that won't open at its default rate is tried at 48 / 44.1 / 16 kHz; a device that stops delivering audio for 3 s (unplugged headset) → warning, and "back" when it returns (the stream is not reopened: restart the app); empty blocks from the resampler no longer reach the silence check.
+
+### Open
+- The fallback model needs ~0.6 GB more RAM (both NLLB models loaded); not measured on the MacBook Air.
+- A device that disappears is not reopened automatically.
+
 ---
 
 ## Resolved

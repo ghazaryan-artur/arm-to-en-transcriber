@@ -48,3 +48,14 @@ def test_terminal_marks_continuation_when_something_was_printed_in_between(capsy
     notice("warning")              # stderr output also blocks the redraw
     t2.show(*block(1, 2, "a b"))
     assert "\x1b[" not in out2.getvalue() and "Me ↻" in out2.getvalue()
+
+
+def test_session_summary():
+    from app.output import session_summary
+
+    rs = [Result(0, "Me", "a", "A", latency=1.0 + i, asr_s=0.1, mt_s=0.5 * i, mt_fast=i == 3) for i in range(4)]
+    out = session_summary(rs)
+    assert out.startswith("4 segments, latency p50 3.00 s, p95 4.00 s")
+    assert "asr p50 0.10 / p95 0.10 s, mt p50 1.00 / p95 1.50 s" in out and "speaker" not in out
+    assert "1 of 4 lines translated by the fast model" in out
+    assert session_summary([]) == "no segments"

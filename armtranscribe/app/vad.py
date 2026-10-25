@@ -16,6 +16,10 @@ def silero_prob() -> Callable[[np.ndarray], float]:
     from silero_vad import load_silero_vad
 
     model = load_silero_vad()
+    with torch.no_grad():  # warm-up: the first calls of the TorchScript model are slow
+        for _ in range(3):
+            model(torch.zeros(FRAME), SAMPLE_RATE)
+    model.reset_states()
 
     def prob(frame: np.ndarray) -> float:
         with torch.no_grad():

@@ -13,18 +13,31 @@ class Capture:
     mono; read() is meant to be called from a single consumer thread.
     """
 
+    FALLBACK_RATES = (48000, 44100, 16000)
+
     def __init__(self, device: int):
         import sounddevice as sd
         import soxr
 
         info = sd.query_devices(device)
         self.name = info["name"]
-        self.rate = int(info["default_samplerate"])
         self.overflows = 0
         self._q: queue.Queue[np.ndarray] = queue.Queue()
+        channels = min(info["max_input_channels"], 2)
+        # the device's default rate, else common ones (some devices report a rate they won't open at)
+        rates = dict.fromkeys([int(info["default_samplerate"]), *self.FALLBACK_RATES])
+        errors = []
+        for rate in rates:
+            try:
+                self._stream = sd.InputStream(device=device, samplerate=rate, dtype="float32",
+                                              channels=channels, callback=self._callback)
+                break
+            except sd.PortAudioError as e:
+                errors.append(f"{rate} Hz: {e}")
+        else:
+            raise ValueError(f"cannot open {self.name!r}: " + "; ".join(errors))
+        self.rate = rate
         self._resampler = soxr.ResampleStream(self.rate, SAMPLE_RATE, 1, dtype="float32")
-        self._stream = sd.InputStream(device=device, samplerate=self.rate, dtype="float32",
-                                      channels=min(info["max_input_channels"], 2), callback=self._callback)
 
     def _callback(self, indata, frames, time, status) -> None:
         if status.input_overflow:
@@ -109,6 +122,13 @@ def load_audio(path: str) -> np.ndarray:
 def list_devices() -> None:
     import sounddevice as sd
     print(sd.query_devices())
+
+
+def input_devices() -> str:
+    """Input devices as `  id: name`, for error messages."""
+    import sounddevice as sd
+
+    return "\n".join(f"  {i}: {d['name']}" for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0)
 
 
 def default_input() -> int:

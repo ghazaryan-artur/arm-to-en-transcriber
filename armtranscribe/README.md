@@ -65,6 +65,8 @@ python scripts/tune_speakers.py conv.wav --timeline     # speaker labels for sev
 
 **Names.** The ASR writes names in lowercase and NLLB translates them as words (`աղաս` → "you little prick", `գոռի` → "the old man's"). About 330 Armenian first names (and Russian ones common in Armenia) are recognised, with case endings (`Գոռի`, `Աննային`), and passed to the translator in Latin (`Gor-ի` → "Gor's"). Names that are usually ordinary words in speech (`Արա` "hey / do!", `Սիրուն` "pretty", `Արև` "sun" …) count as names only before `ջան` (`Արա ջան` → "Ara"); so does any other capitalised word before `ջան` (rare names), except kin words (`Մամ ջան`). `Անուշ` is a name except in `անուշ եղի / լինի` ("enjoy your meal"); `Արա,` without `ջան` is translated as "Hey,". English words said in Armenian (`չատ ջիպիթի`, `վեյբ կոդինգ`, `սկիլերը`, `դեդլայնից` …, ~80 IT / startup terms in `terms.py`, spelled loosely because the ASR mixes up similar consonants) are passed to the translator in English (`skill-երը` → "skills"). Each sentence of a segment is translated on its own: given two, NLLB often drops the second. One-word replies come from a fixed table (`Ապրես` → "Thanks, well done!", `Այո` → "Yes.").
 
+**When the app falls behind** (both sides talking, the CPU busy with the call app), it warns and translates with the faster `nllb-600m-ct2` until it has caught up (`--mt-fast`, `none` to disable; skipped if that model isn't downloaded). `--debug` prints per-line timings and, on exit, latency and per-stage p50 / p95.
+
 `--asr` / `--mt` select another model from `models/` (`python scripts/download_models.py --list`; fetch more with `python scripts/download_models.py <name>`). Stop with Ctrl+C: segments already captured are still finished.
 
 ## Models

@@ -22,7 +22,8 @@ def render_timings(r: Result) -> str:
     spk = f", spk {r.spk_s:.2f} s" if r.spk_s else ""
     merged = f", {r.merged} segments re-translated" if r.merged > 1 else ""
     info = f"\n  [speaker: {r.spk_info}]" if r.spk_info else ""
-    return (f"  [{r.audio_s:.1f} s audio: asr {r.asr_s:.2f} s{spk}, mt {r.mt_s:.2f} s, "
+    fast = " (fast model)" if r.mt_fast else ""
+    return (f"  [{r.audio_s:.1f} s audio: asr {r.asr_s:.2f} s{spk}, mt {r.mt_s:.2f} s{fast}, "
             f"latency {r.latency:.2f} s{merged}]{info}\n")
 
 
@@ -67,8 +68,25 @@ class Terminal:
             self._last = (r.line, rows(text[:-1], columns), _writes)
 
 
+def _pct(values: list[float], q: float) -> float:
+    return sorted(values)[min(len(values) - 1, int(q * len(values)))]
+
+
 def percentile_summary(latencies: list[float]) -> str:
     if not latencies:
         return "no segments"
-    p50, p95 = (sorted(latencies)[min(len(latencies) - 1, int(q * len(latencies)))] for q in (0.5, 0.95))
-    return f"{len(latencies)} segments, latency p50 {p50:.2f} s, p95 {p95:.2f} s"
+    return f"{len(latencies)} segments, latency p50 {_pct(latencies, 0.5):.2f} s, p95 {_pct(latencies, 0.95):.2f} s"
+
+
+def session_summary(results: list[Result]) -> str:
+    """--debug summary on exit: latency and per-stage p50 / p95, fallback-MT use."""
+    if not results:
+        return "no segments"
+    lines = [percentile_summary([r.latency for r in results])]
+    stages = {"asr": [r.asr_s for r in results], "mt": [r.mt_s for r in results]}
+    if spk := [r.spk_s for r in results if r.spk_s]:
+        stages["speaker"] = spk
+    lines.append("  " + ", ".join(f"{k} p50 {_pct(v, 0.5):.2f} / p95 {_pct(v, 0.95):.2f} s" for k, v in stages.items()))
+    if fast := sum(r.mt_fast for r in results):
+        lines.append(f"  {fast} of {len(results)} lines translated by the fast model (the app was behind)")
+    return "\n".join(lines)

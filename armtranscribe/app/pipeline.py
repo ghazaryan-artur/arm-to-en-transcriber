@@ -16,6 +16,7 @@ from app.vad import Segmenter
 LABELS = {"mic": "Me", "system": "System"}
 SILENT_PEAK = 1e-4      # below this a block is digital silence (BlackHole gets nothing)
 SILENT_WARN_S = 15.0    # warn once when the system stream stays silent this long
+STALL_WARN_S = 3.0      # warn when a device delivers no audio at all this long (unplugged?)
 _STOP = None  # queue sentinel
 
 # A segment that follows the previous one of the same source and speaker within MERGE_GAP_S is
@@ -23,6 +24,11 @@ _STOP = None  # queue sentinel
 MERGE_GAP_S = 1.5     # segment start - previous segment end; ≈ a pause of up to 2 s (pre-roll/pad)
 MERGE_MAX = 3         # segments per line, at most
 MERGE_MAX_S = 30.0    # audio per line, at most (MT time grows with the text)
+
+# Backpressure: when a segment reaches MT this long after it ended (both sides talking, the CPU busy
+# with the call app), translate with the faster model until the lag is back under CAUGHT_UP_S.
+BEHIND_S = 2.5
+CAUGHT_UP_S = 1.0
 
 
 @dataclass
@@ -57,10 +63,13 @@ class Pipeline:
     """
 
     def __init__(self, asr: Transcriber, mt: Translator, emit: Callable[[Result], None], recorder=None,
-                 speakers: SpeakerTracker | None = None, debug: bool = False):
+                 speakers: SpeakerTracker | None = None, debug: bool = False, mt_fast: Translator | None = None):
         """`recorder`: optional audio.Recorder that saves the streams and transcribed segments.
-        `speakers`: labels system-audio segments `Speaker N`; without it they are `System`."""
+        `speakers`: labels system-audio segments `Speaker N`; without it they are `System`.
+        `mt_fast`: faster translator used while the pipeline is behind (see BEHIND_S)."""
         self.asr, self.mt, self.emit, self.recorder, self.speakers = asr, mt, emit, recorder, speakers
+        self.mt_fast = mt_fast
+        self._behind = False
         self.debug = debug  # report segments dropped because ASR returned no text
         self.segments: queue.Queue[Segment | None] = queue.Queue()
         self._texts: queue.Queue[tuple | None] = queue.Queue()
@@ -111,16 +120,26 @@ class Pipeline:
 
     def _source_loop(self, capture, segmenter: Segmenter) -> None:
         silent_s, warned = 0.0, segmenter.source != "system"
+        last_block, stalled = time.perf_counter(), False
         while not self._stopping.is_set():
             block = capture.read(timeout=0.1)
-            if block is not None:
-                self._feed(segmenter, block)
-                if not warned:
-                    silent_s = silent_s + len(block) / SAMPLE_RATE if abs(block).max() < SILENT_PEAK else 0.0
-                    if silent_s >= SILENT_WARN_S:
-                        warned = True
-                        notice(f"Warning: no sound on the system-audio device for {SILENT_WARN_S:.0f} s. "
-                               "Is the Multi-Output Device (with BlackHole) selected as the sound output?")
+            now = time.perf_counter()
+            if block is None:
+                if not stalled and now - last_block >= STALL_WARN_S:
+                    stalled = True
+                    notice(f"Warning: no audio from the {segmenter.source} device for {STALL_WARN_S:.0f} s. "
+                           "Was it unplugged or switched off? Restart the app after reconnecting it.")
+                continue
+            if stalled:
+                notice(f"Audio from the {segmenter.source} device is back.")
+            last_block, stalled = now, False
+            self._feed(segmenter, block)
+            if not warned and len(block):
+                silent_s = silent_s + len(block) / SAMPLE_RATE if abs(block).max() < SILENT_PEAK else 0.0
+                if silent_s >= SILENT_WARN_S:
+                    warned = True
+                    notice(f"Warning: no sound on the system-audio device for {SILENT_WARN_S:.0f} s. "
+                           "Is the Multi-Output Device (with BlackHole) selected as the sound output?")
         while (block := capture.read(timeout=0.05)) is not None:  # stream is stopped: drain it
             self._feed(segmenter, block)
         self._put(segmenter.flush())
@@ -184,17 +203,29 @@ class Pipeline:
         self._lines[seg.source] = line
         return line
 
-    def _translate(self, line: _Line) -> None:
+    def _pick_mt(self, lag: float) -> Translator:
+        """The main translator, or the fast one while behind (with hysteresis); warns on each switch."""
+        if not self._behind and lag >= BEHIND_S:
+            self._behind = True
+            notice(f"Warning: {lag:.1f} s behind"
+                   + (", translating with the faster model until caught up" if self.mt_fast else ""))
+        elif self._behind and lag <= CAUGHT_UP_S:
+            self._behind = False
+            if self.mt_fast:
+                notice("Caught up, back to the main translation model")
+        return self.mt_fast if self._behind and self.mt_fast else self.mt
+
+    def _translate(self, line: _Line, mt: Translator) -> None:
         """Translate the line's last segment. A continuation is translated with the segment before
         it as context (only that one: MT time stays bounded however long the line gets) and keeps
         the English already shown."""
         if len(line.hy) == 1:
-            line.en_last = self.mt.translate(line.hy[0])
+            line.en_last = mt.translate(line.hy[0])
             return
-        if hasattr(self.mt, "translate_continuation"):
-            head, added = self.mt.translate_continuation(line.hy[-2], line.en_last, line.hy[-1])
+        if hasattr(mt, "translate_continuation"):
+            head, added = mt.translate_continuation(line.hy[-2], line.en_last, line.hy[-1])
         else:
-            head, added = line.en_last, self.mt.translate(line.hy[-1])
+            head, added = line.en_last, mt.translate(line.hy[-1])
         line.en_done, line.en_last = join_en(line.en_done, head), added
 
     def _mt_loop(self) -> None:
@@ -202,9 +233,10 @@ class Pipeline:
             seg, hy, asr_s, speaker, spk_s, spk_info = item
             line = self._line(seg, hy, speaker)
             text = " ".join(line.hy)
+            mt = self._pick_mt(self.clock() - seg.t_end)
             t = time.perf_counter()
             try:
-                self._translate(line)
+                self._translate(line, mt)
             except Exception as e:
                 notice(f"MT error at {seg.t_start:.1f} s: {e!r}")
             en = line.en
@@ -215,6 +247,6 @@ class Pipeline:
                 self.emit(Result(line.t_start, speaker, text, en,
                                  latency=self.clock() - seg.t_end, audio_s=line.audio_s,
                                  asr_s=asr_s, mt_s=mt_s, spk_s=spk_s, spk_info=spk_info,
-                                 line=line.id, merged=len(line.hy)))
+                                 line=line.id, merged=len(line.hy), mt_fast=mt is not self.mt))
             except Exception as e:  # a failing recorder / printer must not stop the session
                 notice(f"Output error at {seg.t_start:.1f} s: {e!r}")

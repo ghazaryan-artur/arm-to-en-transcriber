@@ -28,3 +28,4 @@ class Result:
     spk_info: str = "" # how the speaker was chosen, similarities to each centroid
     line: int = 0        # id of the printed line; a continuation keeps the id of the line it extends
     merged: int = 1      # segments in this line: > 1 = the previous line(s), re-translated with this one
+    mt_fast: bool = False  # translated by the fast fallback model (the pipeline was behind)
