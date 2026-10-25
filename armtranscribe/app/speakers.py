@@ -11,7 +11,7 @@ import numpy as np
 
 from app.models import SAMPLE_RATE
 
-UNKNOWN = "Speaker ?"  # only before the first speaker exists and the segment is too short to embed
+UNKNOWN = "Speaker ?"  # before the first speaker exists, for segments too short to found one
 
 
 class SpeakerTracker(Protocol):
@@ -68,7 +68,8 @@ class OnlineSpeakerTracker:
 
     - segment < `min_embed_s`: too short for a reliable embedding, gets the previous label
     - best similarity >= `threshold`: that speaker; the centroid moves towards the segment
-    - below threshold: a new speaker, but only from >= `min_new_s` of audio (shorter -> nearest)
+    - below threshold: a new speaker, but only from >= `min_new_s` of audio (shorter -> nearest);
+      the same holds for the first speaker (shorter -> `Speaker ?`)
     - two centroids that drift above `merge_threshold` are merged into the older speaker
     Numbers are never reused, so a label printed once keeps meaning the same person.
 
@@ -106,8 +107,10 @@ class OnlineSpeakerTracker:
         return self._cluster(_unit(self.embed(audio)), len(audio))
 
     def _cluster(self, e: np.ndarray, n_samples: int) -> Decision:
-        if not self.speakers:
-            return Decision(self._new(e), "first")
+        if not self.speakers:  # the first speaker needs min_new_s too: a 1.2 s "Որ" founded a phantom
+            if n_samples >= self.min_new:
+                return Decision(self._new(e), "first")
+            return Decision(UNKNOWN, "short")
         sims = [float(s.centroid @ e) for s in self.speakers]
         named = {self._label(s): round(x, 3) for s, x in zip(self.speakers, sims)}
         i = int(np.argmax(sims))

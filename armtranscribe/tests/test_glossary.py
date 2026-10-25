@@ -97,3 +97,15 @@ def test_r_and_rr_are_interchangeable_in_names():
     n = Names()
     assert n.capitalize("գոր մի երկու բան ասա") == "Գոռ մի երկու բան ասա"
     assert n.latinize("Գորին ասա, Ռուբենը եկավ, Րուբեն") == "Gor-ին ասա, Ruben-ը եկավ, Ruben"
+
+
+def test_single_letter_asr_output_is_dropped():
+    class ASR:
+        def __init__(self, text):
+            self.text = text
+
+        def transcribe(self, audio):
+            return self.text
+
+    assert NamedTranscriber(ASR("Հ."), Names()).transcribe(None) == ""
+    assert NamedTranscriber(ASR("Ու։"), Names()).transcribe(None) == "Ու։"

@@ -180,13 +180,17 @@ def _norm(hy: str) -> str:
 
 
 class NamedTranscriber:
-    """Capitalises known names and drops the dialogue dash the ASR sometimes starts a line with."""
+    """Capitalises known names, drops the dialogue dash the ASR sometimes starts a line with and
+    outputs of a single letter."""
 
     def __init__(self, asr, names: Names):
         self.asr, self.names = asr, names
 
     def transcribe(self, audio) -> str:
-        return self.names.capitalize(re.sub(r"^[֊\-–—]\s*", "", self.asr.transcribe(audio)))
+        text = re.sub(r"^[֊\-–—]\s*", "", self.asr.transcribe(audio))
+        if len(re.findall(r"\w", text)) < 2:  # "Հ.", "Կ": noise read as a letter, MT turns it into "C. What is it?"
+            return ""
+        return self.names.capitalize(text)
 
 
 class GlossaryTranslator:

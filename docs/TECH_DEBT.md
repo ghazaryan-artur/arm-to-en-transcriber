@@ -178,6 +178,15 @@ New mic (`External Microphone`, a wired headset) leaked the call into the mic: r
 
 **Next run (Zoom, podcast played into the call):** a 3-segment line (26.7 s of audio) took MT 4.6 s → latency 6.7 s, over the 5 s target: the continuation re-translated the whole line so far. Now only the segment before is the context (its English forced as prefix), so MT time no longer grows with the line; the 3-segment line from call 2 still reads as one sentence ("…and we hope that our product will be recognized by many in the world and we will get a positive response").
 
+## Call 6 (2026-10-25, Zoom, Artur + Gor + Aghas, 2 min)
+
+Echo filter dropped 2 leaked mic segments (xcorr 0.45–0.47); Gor and Aghas kept their labels through the call (0.63–0.82); p50 2.2 s.
+- **Phantom first speaker**: a 1.2 s `Որ` on the system stream founded `Speaker 1` (the first speaker skipped the ≥ 3 s rule), so Gor became 2 and Aghas 3. **Fixed**: the first speaker needs ≥ 3 s too, shorter segments before it are `Speaker ?`.
+- **Single-letter ASR output** (`Հ.` → "C. What is it?"): **fixed**, outputs with < 2 letters are dropped.
+- **MT slowed 3–4× for ~30 s** (MT 4.2 / 5.9 / 4.0 s, also `Դրական։` 1.6 s; ASR and speaker ID 2–3× slower at the same time) → p95 6.2 s, latency up to 9.2 s. CPU contention with Zoom is the likely cause; NLLB runs with 8 threads on a 4P+4E MacBook Air. → measure with `tools/bench_mt_threads.py` while a Zoom call is open, pick the fastest thread count.
+- **English tech words in Armenian script**: `չատ ջիպիթի`, `Ջեմինի`, `վեյբ կոդինգ`, `գրոկ`, `սկիլերը` → "chat jeep", "WebCat", "the grok", … (also `Սիրիս էյ` Series A → "My dear fellow" in the previous run). → a term list like the names (Armenian spelling → English, case endings kept), if wanted.
+- Overlap: a `Me` segment with Artur talking while Gor's voice leaked in passed the echo filter (mixed text) — expected limit.
+
 ---
 
 ## Resolved

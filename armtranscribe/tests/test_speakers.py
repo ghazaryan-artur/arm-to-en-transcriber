@@ -88,3 +88,10 @@ def test_centroid_follows_running_mean():
 def test_defaults_need_3s_to_create_a_speaker():
     t = OnlineSpeakerTracker(Script(voice(A), voice(B), voice(B)))
     assert labels(t, [4, 2.8, 3.2]) == ["Speaker 1", "Speaker 1", "Speaker 2"]
+
+
+def test_first_speaker_also_needs_min_new_seconds():
+    t = OnlineSpeakerTracker(lambda a: np.ones(4), min_new_s=3.0)
+    assert t.assign(np.zeros(int(1.2 * 16000), np.float32)) == UNKNOWN
+    assert t.last.how == "short" and not t.speakers
+    assert t.assign(np.zeros(3 * 16000, np.float32)) == "Speaker 1"
