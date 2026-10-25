@@ -96,7 +96,7 @@ Add new items under the phase where they appeared; move fixed ones to "Resolved"
 
 ### Weaknesses
 
-- **Echo into the mic → every remote line twice (`System` + `Me`).** Live test, podcast through the Multi-Output Device, user silent. With MacBook speakers in the Multi-Output: echo 53 ms behind, normalised xcorr 0.31. With wired headphones at ~100 % volume: still picked up by the headset mic at −34 dBFS vs the user's voice at −30 dBFS, transcribed almost word for word as `Me`. Out of scope per the brief, but confusing in the interview.
+- **Echo into the mic → every remote line twice (`System` + `Me`).** → **Fixed** by `echo.py` (see "Call 5"). Original finding: Live test, podcast through the Multi-Output Device, user silent. With MacBook speakers in the Multi-Output: echo 53 ms behind, normalised xcorr 0.31. With wired headphones at ~100 % volume: still picked up by the headset mic at −34 dBFS vs the user's voice at −30 dBFS, transcribed almost word for word as `Me`. Out of scope per the brief, but confusing in the interview.
   → First: headphones at a normal call volume (README setup step 5), re-check with 30 s of podcast and a silent user.
   → Phase 5 option: drop a `Me` line when a `System` segment overlapping it in time (±1.5 s) has near-identical text (char similarity > ~0.6), optionally also when the mic segment's voice doesn't match the user's ECAPA profile (Phase 4 embedder). Hold `Me` lines until the system stream has been transcribed up to the same time (≤ ~1 s extra latency; p95 is 2.65 s now). Never drop on voice alone: with overlapping speech the embedding is mixed and real user speech would be lost; the brief says everything from the mic is `Me`.
 - **Overlapping speech.** User reading over the podcast (headphones): the user's lines are recognised but with pieces of the podcast mixed in (`Վերջեր, ինչ ասեմ, այսօր…`). Two people talking at once on one mic is not separable here.
@@ -170,6 +170,11 @@ Cost: a long monologue now shows its first line up to ~13 s after it started (wa
 - **Overlap**: when both sides speak at once, short `Me` fragments get odd text (`Ես եմ հարով լավ`).
 - **Line rewrite in the terminal** assumes nothing else wrote to the terminal and the window wasn't resized since the line was printed; otherwise the old block may be partly left on screen (cosmetic).
 - `segments.tsv` from `--save-audio`: for a segment that continued a line, `en` is the translation of the whole line.
+
+## Call 5 (2026-10-25, `recordings/calls/20261025-171728`)
+
+New mic (`External Microphone`, a wired headset) leaked the call into the mic: remote speech at −48 dBFS in the mic vs the user's −28, < 5 ms behind the system stream. Every remote line was printed twice (`Speaker 1` and `Me`), and the `Me` copies broke the line merging (lines interleaved, `↻` everywhere).
+**Fixed**: `echo.py` — a mic segment whose normalised cross-correlation with the system stream (best lag within ±0.3 s, each window normalised by its own energy) is ≥ 0.3 is dropped before ASR. On all five calls: leaked segments 0.37–0.59 (call 5 ×6, and `Ես եմ հարով լավ` in call 3, which was also echo), own speech 0.01–0.16, including talking over the other side. A segment where the user speaks *and* the leak is heard still passes and can mix both.
 
 ---
 

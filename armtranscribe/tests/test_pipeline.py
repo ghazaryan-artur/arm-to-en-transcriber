@@ -1,5 +1,6 @@
 import time
 
+import numpy as np
 import soundfile as sf
 
 from app.audio import Recorder
@@ -57,6 +58,8 @@ def run(audio, asr, recorder=None):
 THREE_UTTERANCES = signal((0.5, SILENCE), (1.0, SPEECH), (2.5, SILENCE), (2.0, SPEECH), (2.5, SILENCE),
                           (1.5, SPEECH))  # the last one is still in progress when capture stops
 FIRST_TWO = THREE_UTTERANCES[: 16000 * 9 // 2]  # 4.5 s: the first utterance and 0.5 s of the second
+# the same timing on the system stream, but a different signal (identical audio would be an echo of the mic)
+OTHER_VOICE = FIRST_TWO * np.random.default_rng(1).choice([-1.0, 1.0], len(FIRST_TWO)).astype(np.float32)
 
 
 def test_segments_flow_through_in_order_and_last_is_flushed():
@@ -95,7 +98,7 @@ def test_recorder_saves_stream_segments_and_manifest(tmp_path):
 
 def test_two_sources_are_labelled_and_both_flushed():
     results = []
-    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(FIRST_TWO)
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(OTHER_VOICE)
     p = Pipeline(FakeASR(), FakeMT(), results.append)
     p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
     p.add_source(system, Segmenter("system", speech_prob=fake_prob))
@@ -116,7 +119,7 @@ def test_system_segments_get_speaker_labels_mic_stays_me():
             return f"Speaker {self.n}"
 
     results = []
-    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(FIRST_TWO)
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(OTHER_VOICE)
     p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=FakeTracker())
     p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
     p.add_source(system, Segmenter("system", speech_prob=fake_prob))

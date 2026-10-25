@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from app.asr import Transcriber
+from app.echo import StreamTail, is_echo
 from app.models import SAMPLE_RATE, Result, Segment
 from app.output import notice
 from app.speakers import SpeakerTracker
@@ -55,12 +56,15 @@ class Pipeline:
         self._threads: list[threading.Thread] = []
         self._stopping = threading.Event()
         self._t0 = 0.0
+        self._system_tail: StreamTail | None = None  # recent system audio, to spot it leaking into the mic
         self._lines: dict[str, _Line] = {}  # source -> its last line (MT thread only)
         self._n_lines = 0
 
     def add_source(self, capture, segmenter: Segmenter) -> None:
         """`capture`: anything with start() / stop() / read(timeout) -> 16 kHz block or None."""
         self._sources.append((capture, segmenter))
+        if segmenter.source == "system":
+            self._system_tail = StreamTail()
 
     def clock(self) -> float:
         """Seconds since start()."""
@@ -112,6 +116,8 @@ class Pipeline:
     def _feed(self, segmenter: Segmenter, block) -> None:
         if self.recorder:
             self.recorder.write_stream(segmenter.source, block)
+        if segmenter.source == "system" and self._system_tail is not None:
+            self._system_tail.append(block)
         self._put(segmenter.feed(block))
 
     def _put(self, segments: list[Segment]) -> None:
@@ -120,6 +126,13 @@ class Pipeline:
 
     def _asr_loop(self) -> None:
         while (seg := self.segments.get()) is not _STOP:
+            if seg.source == "mic" and self._system_tail is not None:
+                echo, score = is_echo(seg.audio, seg.t_start, seg.t_end, self._system_tail)
+                if echo:  # the headset leaks the call into its mic: the line is already printed as a speaker
+                    if self.debug:
+                        notice(f"  [dropped mic segment {seg.t_start:.1f}-{seg.t_end:.1f} s: echo of the call "
+                               f"audio, xcorr {score:.2f}]")
+                    continue
             t = time.perf_counter()
             try:
                 hy = self.asr.transcribe(seg.audio)
