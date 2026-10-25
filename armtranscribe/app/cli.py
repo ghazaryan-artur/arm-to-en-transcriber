@@ -26,6 +26,17 @@ def resolve_model(spec: str) -> str:
 def add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--asr", default=DEFAULT_ASR, help=f"ASR model name in models/ or path (default {DEFAULT_ASR})")
     p.add_argument("--mt", default=DEFAULT_MT, help=f"translation model name in models/ or path (default {DEFAULT_MT})")
+    p.add_argument("--names", nargs="+", metavar="NAME[=Latin]",
+                   help="names of people in the call, e.g. --names Աղաս Գոռ=Gor (common Armenian names are "
+                        "built in; add rare ones and names that are also ordinary words)")
+
+
+def with_glossary(asr, mt, args):
+    """Wrap the models: names capitalised in HY and kept as names in EN, short replies, term fixes."""
+    from app.glossary import GlossaryTranslator, Names, NamedTranscriber, parse_names
+
+    names = Names(parse_names(args.names))
+    return NamedTranscriber(asr, names), GlossaryTranslator(mt, names)
 
 
 def add_speaker_args(p: argparse.ArgumentParser) -> None:
@@ -72,7 +83,7 @@ def main() -> None:
     from app.asr import load_transcriber
     from app.audio import Capture, Recorder, default_input, resolve_device
     from app.models import SAMPLE_RATE
-    from app.output import percentile_summary, render, render_timings
+    from app.output import Terminal, notice, percentile_summary, render, render_timings
     from app.pipeline import Pipeline
     from app.translate import load_translator
     from app.vad import Segmenter
@@ -88,15 +99,17 @@ def main() -> None:
     print("Loading models...", flush=True)
     asr = load_transcriber(resolve_model(args.asr))
     mt = load_translator(resolve_model(args.mt))
+    asr, mt = with_glossary(asr, mt, args)
     asr.transcribe(np.zeros(SAMPLE_RATE, np.float32))  # warm-up: the first call loads weights
     mt.translate("Բարև")
     speakers = load_speaker_tracker(args) if system is not None else None
 
     latencies = []
+    terminal = Terminal()
 
     def emit(r):
         latencies.append(r.latency)
-        print(render(r) + (render_timings(r) if args.debug else ""), flush=True)
+        terminal.show(r, render(r) + (render_timings(r) if args.debug else ""))
 
     captures = {"mic": Capture(mic)}
     if system is not None:
@@ -109,6 +122,9 @@ def main() -> None:
     if "system" in captures:
         print(f"System audio: {captures['system'].name}"
               + f" (speakers: threshold {args.spk_threshold})")
+    if args.names:
+        from app.glossary import parse_names
+        print("Names: " + ", ".join(f"{a} = {b}" for a, b in parse_names(args.names).items()))
     if recorder:
         print(f"Saving to {recorder.dir}")
     print("Listening, Ctrl+C to stop\n", flush=True)
@@ -117,7 +133,7 @@ def main() -> None:
         while True:
             time.sleep(0.5)
     except KeyboardInterrupt:
-        print("\nStopping, finishing queued segments (Ctrl+C again to quit now)...", flush=True)
+        notice("\nStopping, finishing queued segments (Ctrl+C again to quit now)...")
         pipeline.stop()
     if args.debug:
         overflows = ", ".join(f"{s} {c.overflows}" for s, c in captures.items())

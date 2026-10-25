@@ -57,10 +57,15 @@ python -m app                          # live: default microphone only, lines la
 python -m app --system BlackHole       # live: microphone + system audio ("Speaker 1", "Speaker 2" …), the normal call setup
 python -m app --system BlackHole --spk-threshold 0.4   # lower = fewer speakers (merges), higher = more (splits)
 python -m app --mic <id|name> --debug  # pick the mic; --debug prints per-stage timings and latency p50/p95 on exit
+python -m app --system BlackHole --names Աղաս Գոռ=Gor   # names of people in the call (see below)
 python -m app --save-audio DIR         # also save the session: full stream, segments, segments.tsv (file, hy, en)
 python -m app.file recording.wav       # offline: transcribe + translate a file (add --speakers to label speakers)
 python scripts/tune_speakers.py conv.wav --timeline     # speaker labels for several thresholds, to tune on a recording
 ```
+**Lines that continue.** People pause mid-sentence; a segment that follows the same speaker's previous one within ~2 s of silence is translated together with it, and that line is updated in place (or printed again marked `↻` if another line came in between). The English already shown stays, only the continuation is added.
+
+**Names.** The ASR writes names in lowercase and NLLB translates them as words (`աղաս` → "you little prick", `գոռի` → "the old man's"). About 190 common Armenian first names are recognised (with case endings: `Գոռի`, `Աննային`) and passed to the translator in Latin (`Gor-ի` → "Gor's"). Rare names and names that are also ordinary words (`Անուշ`, `Գոհար`, `Կարեն` …) go in `--names`, optionally with the English spelling (`Գոռ=Gor`). One-word replies come from a fixed table (`Ապրես` → "Thanks, well done!", `Այո` → "Yes.").
+
 `--asr` / `--mt` select another model from `models/` (`python scripts/download_models.py --list`; fetch more with `python scripts/download_models.py <name>`). Stop with Ctrl+C: segments already captured are still finished.
 
 ## Models
@@ -141,7 +146,7 @@ _TODO_
 
 ## Known limitations
 - **Spontaneous, colloquial speech is much harder than read speech.** The ASR models were trained on read Common Voice / FLEURS sentences; Yerevan colloquial forms (`ա` for `է`, `էդ`, `էրկու`) and English tech loanwords (`ինթելիջենս`, `ռոբոտիքս`) are often misspelled, and NLLB then translates the misspelling ("Dune scenario" → "snow scenario"). With the FastConformer most podcast lines now keep their meaning, but CER against YouTube's captions is still ~18%.
-- **Proper names and English terms.** NLLB may still translate a name that is also a common word, and English loanwords written in Armenian script are often mistranslated (`բեթրիփեք` "battery pack" → "tripectin bacteria").
+- **Proper names and English terms.** Names outside the built-in list and `--names` are still translated as words, and English loanwords written in Armenian script are often mistranslated (`բեթրիփեք` "battery pack" → "tripectin bacteria").
 - **ASR errors cascade into MT.** One wrong letter can change the meaning (`ՄԱԿ-ի` "UN's" → `մակի` → "mouse expert").
 - **Licenses.** NVIDIA FastConformer: CC-BY-4.0 (attribution to NVIDIA). NLLB-200: CC-BY-NC-4.0 (non-commercial). SpeechBrain ECAPA: Apache-2.0.
 - **Echo.** The microphone is not echo-cancelled: with speakers, or very loud headphones, the other side is transcribed twice (`System` and `Me`). Use headphones at a normal volume.

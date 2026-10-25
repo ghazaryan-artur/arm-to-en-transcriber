@@ -8,7 +8,7 @@ so the segmentation matches the live mode.
 import argparse
 import time
 
-from app.cli import add_model_args, add_speaker_args, load_speaker_tracker, resolve_model  # first: offline mode
+from app.cli import add_model_args, add_speaker_args, load_speaker_tracker, resolve_model, with_glossary  # first: offline mode
 
 import numpy as np  # noqa: E402
 
@@ -45,6 +45,7 @@ def main() -> None:
 
     asr = load_transcriber(resolve_model(args.asr))
     mt = load_translator(resolve_model(args.mt))
+    asr, mt = with_glossary(asr, mt, args)
     tracker = load_speaker_tracker(args) if args.speakers else None
     segments = split_speech(load_audio(args.path))
     if not segments:

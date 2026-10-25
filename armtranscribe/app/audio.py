@@ -53,6 +53,7 @@ class Recorder:
     <source>.wav         the whole 16 kHz stream of each source (to re-run the VAD with other settings)
     NNNN_<source>.wav    each transcribed segment
     segments.tsv         `file<TAB>hy<TAB>en` per segment: a benchmark manifest once hy/en are corrected
+                         (en is the translation of the whole printed line when the segment continued one)
     """
 
     def __init__(self, root: str):

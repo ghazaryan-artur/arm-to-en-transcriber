@@ -154,7 +154,25 @@ Cost: a long monologue now shows its first line up to ~13 s after it started (wa
 - Leading `֊ ` dash in ASR output (FastConformer too, not only Whisper) → strip it.
 - Lines print in segment-end order, so a long remote line can appear after a later short `Me` line (`00:00:07 Me` before `00:00:04 Speaker 1`).
 
+## Calls 2 and 3 (2026-10-25)
+
+`recordings/calls/20261025-153131` (2.5 min, two people on the other side, each speaking in turn) and `…-153533` (1.5 min, frequent interruptions). Latency p50 1.4 s / p95 2.1 s; no echo (mic at −55…−60 dBFS while the call plays, xcorr < 0.25); speakers stable even with interruptions (Gor = `Speaker 1`, Aghas = `Speaker 2` throughout call 3). Call 2 had one phantom `Speaker 2` (a 3.5 s line of `Speaker 1`, similarity 0.39 — below the 0.45 threshold).
+
+**Fixed:**
+- **Fragments at thinking pauses (> 1 s)** were translated alone ("And we hope that our product." / "The world will know and we will get positive."). A segment that follows the same speaker within 1.5 s (between segments, ≈ 2 s of silence) now extends the previous line, max 3 segments / 30 s → "…and we hope that our product will be recognized and received positively in the world". Plain joining made NLLB **drop the second sentence** in 4 of 8 two-segment joins (`Պատասխանեմ … սեւ հաց էր։ Դու ինչեր հարցնում…` → only the first), so the join is translated with the English already shown forced as the prefix, and the new part is translated alone if the continuation comes out empty. Re-run on calls 2–3 (NLLB in the VM): nothing dropped.
+- **NLLB repetition loop on a joined line** ("we're going to put up, …" × 28): `no_repeat_ngram_size=4`, output ≤ 1.5 × source + 10 tokens. Live test part 1: identical output and chrF++ (72.2) with and without the guard.
+- **Names**: `աղաս` → "you little prick" / "pray", `գոռի` → "the old man's". Capitalising alone gives "Alas", "Gore"; Latin with the case ending kept (`Gor-ի`, `Aghas-ին`) gives "Gor's question", "Aghas". ~190 built-in names (ambiguous ones excluded) + `--names`.
+- **One-word replies** from a table (`Ապրես` "You live" → "Thanks, well done!", `Այո` "Yes, you did" → "Yes."), also as a sentence inside a segment (`Ապրես։ Աղաս դու ասա։` lost the `Ապրես`). `drachmas` → `drams`. Leading `֊ ` dash dropped.
+
+### Still open
+- **Numbers**: ASR `հիսուներկու` → `մինիսուն երկու` → "two and a half"; `Տասներկուսին` ("at twelve") → "It's twelve".
+- **Colloquial sentences still mistranslated** now and then (`Կտրենք խոսքդ…` → "Let's cut to the chase" and the list of breads dropped; `ինչ ա արել` → "…to know").
+- **Overlap**: when both sides speak at once, short `Me` fragments get odd text (`Ես եմ հարով լավ`).
+- **Line rewrite in the terminal** assumes nothing else wrote to the terminal and the window wasn't resized since the line was printed; otherwise the old block may be partly left on screen (cosmetic).
+- `segments.tsv` from `--save-audio`: for a segment that continued a line, `en` is the translation of the whole line.
+
 ---
 
 ## Resolved
+- **NLLB repetition loops** (Phase 2) → `no_repeat_ngram_size=4` + length cap (see "Calls 2 and 3").
 - **Force-cut splits words / sentences** (Phase 2, Phase 3 items) → pause-based cut, 1 s silence, 12 s cap (see "First real call").

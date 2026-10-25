@@ -1,12 +1,13 @@
 """Live pipeline on plain threads: capture → VAD → ASR worker → MT worker → emit."""
 import queue
-import sys
 import threading
 import time
+from dataclasses import dataclass, field
 from typing import Callable
 
 from app.asr import Transcriber
 from app.models import SAMPLE_RATE, Result, Segment
+from app.output import notice
 from app.speakers import SpeakerTracker
 from app.translate import Translator
 from app.vad import Segmenter
@@ -15,6 +16,24 @@ LABELS = {"mic": "Me", "system": "System"}
 SILENT_PEAK = 1e-4      # below this a block is digital silence (BlackHole gets nothing)
 SILENT_WARN_S = 15.0    # warn once when the system stream stays silent this long
 _STOP = None  # queue sentinel
+
+# A segment that follows the previous one of the same source and speaker within MERGE_GAP_S is
+# translated together with it (people pause > 1 s mid-sentence; fragments translate into nonsense).
+MERGE_GAP_S = 1.5     # segment start - previous segment end; ≈ a pause of up to 2 s (pre-roll/pad)
+MERGE_MAX = 3         # segments per line, at most
+MERGE_MAX_S = 30.0    # audio per line, at most (MT time grows with the text)
+
+
+@dataclass
+class _Line:
+    """The last printed line of one source, which a continuation can extend."""
+    id: int
+    speaker: str
+    t_start: float
+    t_end: float
+    hy: list[str] = field(default_factory=list)
+    audio_s: float = 0.0
+    en: str = ""          # translation of the line so far (what was printed last)
 
 
 class Pipeline:
@@ -36,6 +55,8 @@ class Pipeline:
         self._threads: list[threading.Thread] = []
         self._stopping = threading.Event()
         self._t0 = 0.0
+        self._lines: dict[str, _Line] = {}  # source -> its last line (MT thread only)
+        self._n_lines = 0
 
     def add_source(self, capture, segmenter: Segmenter) -> None:
         """`capture`: anything with start() / stop() / read(timeout) -> 16 kHz block or None."""
@@ -82,9 +103,8 @@ class Pipeline:
                     silent_s = silent_s + len(block) / SAMPLE_RATE if abs(block).max() < SILENT_PEAK else 0.0
                     if silent_s >= SILENT_WARN_S:
                         warned = True
-                        print(f"Warning: no sound on the system-audio device for {SILENT_WARN_S:.0f} s. "
-                              "Is the Multi-Output Device (with BlackHole) selected as the sound output?",
-                              file=sys.stderr, flush=True)
+                        notice(f"Warning: no sound on the system-audio device for {SILENT_WARN_S:.0f} s. "
+                               "Is the Multi-Output Device (with BlackHole) selected as the sound output?")
         while (block := capture.read(timeout=0.05)) is not None:  # stream is stopped: drain it
             self._feed(segmenter, block)
         self._put(segmenter.flush())
@@ -104,14 +124,13 @@ class Pipeline:
             try:
                 hy = self.asr.transcribe(seg.audio)
             except Exception as e:  # one bad segment must not stop the session
-                print(f"ASR error at {seg.t_start:.1f} s: {e!r}", file=sys.stderr)
+                notice(f"ASR error at {seg.t_start:.1f} s: {e!r}")
                 continue
             if hy:  # speaker only for segments with text: noise must not found a speaker
                 asr_s = time.perf_counter() - t
                 self._texts.put((seg, hy, asr_s, *self._speaker(seg)))
             elif self.debug:
-                print(f"  [dropped {seg.source} segment {seg.t_start:.1f}-{seg.t_end:.1f} s: ASR returned no text]",
-                      file=sys.stderr, flush=True)
+                notice(f"  [dropped {seg.source} segment {seg.t_start:.1f}-{seg.t_end:.1f} s: ASR returned no text]")
         self._texts.put(_STOP)
 
     def _speaker(self, seg: Segment) -> tuple[str, float, str]:
@@ -122,21 +141,50 @@ class Pipeline:
         try:
             label = self.speakers.assign(seg.audio)
         except Exception as e:
-            print(f"Speaker ID error at {seg.t_start:.1f} s: {e!r}", file=sys.stderr)
+            notice(f"Speaker ID error at {seg.t_start:.1f} s: {e!r}")
             return LABELS["system"], time.perf_counter() - t, ""
         return label, time.perf_counter() - t, str(getattr(self.speakers, "last", "") or "")
+
+    def _line(self, seg: Segment, hy: str, speaker: str) -> _Line:
+        """The line this segment is printed in: the source's last line extended, or a new one."""
+        audio_s = seg.t_end - seg.t_start
+        last = self._lines.get(seg.source)
+        if (last and last.speaker == speaker and seg.t_start - last.t_end <= MERGE_GAP_S
+                and len(last.hy) < MERGE_MAX and last.audio_s + audio_s <= MERGE_MAX_S):
+            line = _Line(last.id, speaker, last.t_start, seg.t_end, last.hy + [hy], last.audio_s + audio_s, last.en)
+        else:
+            self._n_lines += 1
+            line = _Line(self._n_lines, speaker, seg.t_start, seg.t_end, [hy], audio_s)
+        self._lines[seg.source] = line
+        return line
+
+    def _translate(self, line: _Line) -> str:
+        if len(line.hy) == 1:
+            return self.mt.translate(line.hy[0])
+        prev_hy, hy = " ".join(line.hy[:-1]), line.hy[-1]
+        if hasattr(self.mt, "translate_continuation"):  # keeps the part already shown
+            return self.mt.translate_continuation(prev_hy, line.en, hy)
+        return self.mt.translate(f"{prev_hy} {hy}")
 
     def _mt_loop(self) -> None:
         while (item := self._texts.get()) is not _STOP:
             seg, hy, asr_s, speaker, spk_s, spk_info = item
+            line = self._line(seg, hy, speaker)
+            text = " ".join(line.hy)
             t = time.perf_counter()
             try:
-                en = self.mt.translate(hy)
+                en = self._translate(line)
             except Exception as e:
-                print(f"MT error at {seg.t_start:.1f} s: {e!r}", file=sys.stderr)
-                en = ""
-            if self.recorder:
-                self.recorder.write_segment(seg, hy, en)
-            self.emit(Result(seg.t_start, speaker, hy, en,
-                             latency=self.clock() - seg.t_end, audio_s=seg.t_end - seg.t_start,
-                             asr_s=asr_s, mt_s=time.perf_counter() - t, spk_s=spk_s, spk_info=spk_info))
+                notice(f"MT error at {seg.t_start:.1f} s: {e!r}")
+                en = line.en
+            line.en = en
+            mt_s = time.perf_counter() - t
+            try:
+                if self.recorder:
+                    self.recorder.write_segment(seg, hy, en)
+                self.emit(Result(line.t_start, speaker, text, en,
+                                 latency=self.clock() - seg.t_end, audio_s=line.audio_s,
+                                 asr_s=asr_s, mt_s=mt_s, spk_s=spk_s, spk_info=spk_info,
+                                 line=line.id, merged=len(line.hy)))
+            except Exception as e:  # a failing recorder / printer must not stop the session
+                notice(f"Output error at {seg.t_start:.1f} s: {e!r}")

@@ -54,8 +54,9 @@ def run(audio, asr, recorder=None):
     return capture, results
 
 
-THREE_UTTERANCES = signal((0.5, SILENCE), (1.0, SPEECH), (1.0, SILENCE), (2.0, SPEECH), (1.0, SILENCE),
+THREE_UTTERANCES = signal((0.5, SILENCE), (1.0, SPEECH), (2.5, SILENCE), (2.0, SPEECH), (2.5, SILENCE),
                           (1.5, SPEECH))  # the last one is still in progress when capture stops
+FIRST_TWO = THREE_UTTERANCES[: 16000 * 9 // 2]  # 4.5 s: the first utterance and 0.5 s of the second
 
 
 def test_segments_flow_through_in_order_and_last_is_flushed():
@@ -94,7 +95,7 @@ def test_recorder_saves_stream_segments_and_manifest(tmp_path):
 
 def test_two_sources_are_labelled_and_both_flushed():
     results = []
-    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(THREE_UTTERANCES[: 16000 * 3])
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(FIRST_TWO)
     p = Pipeline(FakeASR(), FakeMT(), results.append)
     p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
     p.add_source(system, Segmenter("system", speech_prob=fake_prob))
@@ -115,7 +116,7 @@ def test_system_segments_get_speaker_labels_mic_stays_me():
             return f"Speaker {self.n}"
 
     results = []
-    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(THREE_UTTERANCES[: 16000 * 3])
+    mic, system = FakeCapture(THREE_UTTERANCES), FakeCapture(FIRST_TWO)
     p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=FakeTracker())
     p.add_source(mic, Segmenter("mic", speech_prob=fake_prob))
     p.add_source(system, Segmenter("system", speech_prob=fake_prob))
@@ -132,7 +133,7 @@ def test_speaker_error_falls_back_to_system_label(capsys):
 
     results = []
     p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=Broken())
-    p.add_source(FakeCapture(THREE_UTTERANCES[: 16000 * 3]), Segmenter("system", speech_prob=fake_prob))
+    p.add_source(FakeCapture(FIRST_TWO), Segmenter("system", speech_prob=fake_prob))
     p.start()
     p.stop()
     assert [r.speaker for r in results] == ["System", "System"]
@@ -164,3 +165,91 @@ def test_debug_reports_segments_with_no_text(capsys):
     p.start()
     p.stop()
     assert capsys.readouterr().err.count("ASR returned no text") == 3
+
+
+def run_lines(audio, **kw):
+    results = []
+    p = Pipeline(FakeASR(), FakeMT(), results.append, **kw)
+    p.add_source(FakeCapture(audio), Segmenter("mic", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    return results
+
+
+def test_continuation_after_short_pause_is_translated_with_the_previous_segment():
+    # 1.2 s pause: long enough to end a segment, short enough to continue the line
+    results = run_lines(signal((2.0, SPEECH), (1.2, SILENCE), (2.0, SPEECH), (3.0, SILENCE)))
+    assert [(r.hy, r.en, r.merged) for r in results] == [("hy1", "en1", 1), ("hy1 hy2", "en1 en2", 2)]
+    assert results[0].line == results[1].line
+    assert results[1].t_start == results[0].t_start
+    assert results[1].audio_s > results[0].audio_s
+
+
+def test_long_pause_starts_a_new_line():
+    results = run_lines(signal((2.0, SPEECH), (3.0, SILENCE), (2.0, SPEECH), (3.0, SILENCE)))
+    assert [(r.hy, r.merged) for r in results] == [("hy1", 1), ("hy2", 1)]
+    assert results[0].line != results[1].line
+
+
+def test_line_holds_at_most_merge_max_segments():
+    from app import pipeline as pl
+
+    parts = []
+    for _ in range(pl.MERGE_MAX + 1):
+        parts += [(1.0, SPEECH), (1.2, SILENCE)]
+    results = run_lines(signal(*parts, (2.0, SILENCE)))
+    assert [r.merged for r in results] == [1, 2, 3, 1]
+    assert results[-1].hy == f"hy{pl.MERGE_MAX + 1}"
+
+
+def test_speaker_change_starts_a_new_line():
+    class Alternating:
+        def __init__(self):
+            self.n, self.last = 0, ""
+
+        def assign(self, audio):
+            self.n += 1
+            return f"Speaker {2 - self.n % 2}"
+
+    results = []
+    p = Pipeline(FakeASR(), FakeMT(), results.append, speakers=Alternating())
+    p.add_source(FakeCapture(signal((2.0, SPEECH), (1.2, SILENCE), (2.0, SPEECH), (3.0, SILENCE))),
+                 Segmenter("system", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert [(r.speaker, r.hy, r.merged) for r in results] == [("Speaker 1", "hy1", 1), ("Speaker 2", "hy2", 1)]
+
+
+def test_output_error_does_not_stop_the_session(capsys):
+    calls = []
+
+    def emit(r):
+        calls.append(r)
+        if len(calls) == 1:
+            raise RuntimeError("boom")
+
+    p = Pipeline(FakeASR(), FakeMT(), emit)
+    p.add_source(FakeCapture(THREE_UTTERANCES), Segmenter("mic", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert len(calls) == 3
+    assert "Output error" in capsys.readouterr().err
+
+
+def test_continuation_uses_translate_continuation_with_what_was_shown():
+    class ContextMT(FakeMT):
+        def __init__(self):
+            self.calls = []
+
+        def translate_continuation(self, prev_hy, prev_en, hy):
+            self.calls.append((prev_hy, prev_en, hy))
+            return f"{prev_en} +{hy}"
+
+    mt, results = ContextMT(), []
+    p = Pipeline(FakeASR(), mt, results.append)
+    p.add_source(FakeCapture(signal((1.0, SPEECH), (1.2, SILENCE), (1.0, SPEECH), (1.2, SILENCE), (1.0, SPEECH),
+                                    (3.0, SILENCE))), Segmenter("mic", speech_prob=fake_prob))
+    p.start()
+    p.stop()
+    assert mt.calls == [("hy1", "en1", "hy2"), ("hy1 hy2", "en1 +hy2", "hy3")]
+    assert [r.en for r in results] == ["en1", "en1 +hy2", "en1 +hy2 +hy3"]

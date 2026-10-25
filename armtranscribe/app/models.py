@@ -26,3 +26,5 @@ class Result:
     mt_s: float = 0.0
     spk_s: float = 0.0   # speaker embedding + clustering (system audio only)
     spk_info: str = "" # how the speaker was chosen, similarities to each centroid
+    line: int = 0        # id of the printed line; a continuation keeps the id of the line it extends
+    merged: int = 1      # segments in this line: > 1 = the previous line(s), re-translated with this one

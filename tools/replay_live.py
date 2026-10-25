@@ -1,6 +1,6 @@
 """Replay an audio file through the live Pipeline in real time (stand-in for the mic) and report latency.
 
-    python tools/replay_live.py <audio> [seconds] [--asr name] [--mt name]
+    python tools/replay_live.py <audio> [seconds] [--asr name] [--mt name] [--names ...]
 
 Feeds the first `seconds` (default 120) at wall-clock pace, prints every line with per-stage timings
 and ends with latency p50/p95 (segment end -> printed), as `python -m app --debug` would.
@@ -52,7 +52,7 @@ def main() -> None:
 
     from app.asr import load_transcriber
     from app.audio import load_audio
-    from app.output import percentile_summary, render, render_timings
+    from app.output import Terminal, percentile_summary, render, render_timings
     from app.pipeline import Pipeline
     from app.translate import load_translator
     from app.vad import Segmenter
@@ -60,14 +60,16 @@ def main() -> None:
     audio = load_audio(args.path)[:int(args.seconds * SAMPLE_RATE)]
     asr = load_transcriber(cli.resolve_model(args.asr))
     mt = load_translator(cli.resolve_model(args.mt))
+    asr, mt = cli.with_glossary(asr, mt, args)
     asr.transcribe(np.zeros(SAMPLE_RATE, np.float32))  # warm-up, as the live CLI does
     mt.translate("Բարև")
 
     latencies = []
+    terminal = Terminal()
 
     def emit(r):
         latencies.append(r.latency)
-        print(render(r) + render_timings(r), flush=True)
+        terminal.show(r, render(r) + render_timings(r))
 
     src = RealtimeWav(audio)
     pipeline = Pipeline(asr, mt, emit)
