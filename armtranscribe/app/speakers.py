@@ -68,8 +68,9 @@ class OnlineSpeakerTracker:
 
     - segment < `min_embed_s`: too short for a reliable embedding, gets the previous label
     - best similarity >= `threshold`: that speaker; the centroid moves towards the segment
-    - in the grey zone `threshold - new_margin` .. `threshold`: the nearest speaker, centroid left
-      alone (a known voice laughing or excited, or a segment mixing two voices)
+    - in the grey zone `threshold - new_margin` .. `threshold`, for segments < `grey_max_s`: the
+      nearest speaker, centroid left alone (a known voice laughing or excited, or a segment mixing
+      two voices). A longer segment has a reliable embedding and founds a new speaker as before
     - below that: a new speaker, but only from >= `min_new_s` of audio (shorter -> nearest);
       the same holds for the first speaker (shorter -> `Speaker ?`)
     - two centroids that drift above `merge_threshold` are merged into the older speaker
@@ -80,19 +81,19 @@ class OnlineSpeakerTracker:
     labels, 0.65 splits one person into several. A 2.8 s laugh/overlap fragment that matched nobody
     created a phantom speaker at min_new_s=1.5-2.5; 3.0 removes it.
 
-    The grey zone comes from the recorded calls (Zoom audio, Gor and Aghas): a 3.5 s line of a
-    known speaker scored 0.39 and became a phantom `Speaker 2`, while a new person's first line
-    scored at most 0.30-0.33 against the other voice. With new_margin=0.10 (new speaker only below
-    0.35) the phantom is gone and the labels of 3 calls and the 3 podcast clips are otherwise
-    unchanged.
+    The grey zone comes from the recorded calls (Zoom / Meet audio, Gor and Aghas): a 3.5 s line of
+    a known speaker scored 0.39 and became a phantom `Speaker 2`, but in a later call a new person's
+    first line (11 s) also scored 0.39 against the other voice. Both are right with the grey zone
+    limited to segments < 6 s; labels of the other calls and the 3 podcast clips are unchanged.
     """
 
     def __init__(self, embed: Callable[[np.ndarray], np.ndarray], threshold: float = 0.45,
                  min_embed_s: float = 1.0, min_new_s: float = 3.0, merge_threshold: float = 0.75,
-                 new_margin: float = 0.10, sample_rate: int = SAMPLE_RATE):
+                 new_margin: float = 0.10, grey_max_s: float = 6.0, sample_rate: int = SAMPLE_RATE):
         self.embed = embed
         self.threshold, self.merge_threshold = threshold, merge_threshold
         self.new_below = threshold - new_margin
+        self.grey_max = int(grey_max_s * sample_rate)
         self.min_embed, self.min_new = int(min_embed_s * sample_rate), int(min_new_s * sample_rate)
         self.speakers: list[_Speaker] = []
         self._next_id = 1
@@ -128,7 +129,7 @@ class OnlineSpeakerTracker:
             best.total, best.n = best.total + e, best.n + 1
             label = self._merge_into(best)
             return Decision(label, "match", named)
-        if sims[i] >= self.new_below:  # grey zone: probably a known voice, too unsure to move its centroid
+        if sims[i] >= self.new_below and n_samples < self.grey_max:  # grey zone: probably a known voice
             return Decision(self._label(self.speakers[i]), "unsure", named)
         if n_samples >= self.min_new:
             return Decision(self._new(e), "new", named)

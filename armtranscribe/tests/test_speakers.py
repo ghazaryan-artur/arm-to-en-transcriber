@@ -107,3 +107,11 @@ def test_grey_zone_goes_to_the_nearest_speaker_without_moving_it():
     assert t.assign(long) == "Speaker 1" and t.last.how == "unsure"
     assert np.allclose(t.speakers[0].centroid, e1)      # centroid not moved by the unsure segment
     assert t.assign(long) == "Speaker 2"
+
+
+def test_long_segment_in_the_grey_zone_founds_a_new_speaker():
+    e1, e2 = np.eye(4)[0], np.eye(4)[1]
+    other = 0.39 * e1 + np.sqrt(1 - 0.39 ** 2) * e2      # an 11 s first line of a new person scored 0.39
+    t = OnlineSpeakerTracker(Script(e1, other), threshold=0.45)
+    t.assign(np.zeros(4 * 16000, np.float32))
+    assert t.assign(np.zeros(11 * 16000, np.float32)) == "Speaker 2"
