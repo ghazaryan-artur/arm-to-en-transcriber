@@ -141,5 +141,20 @@ Tuned on 3 clips of the Rearrange #326 podcast (`recordings/podcast/excerpt_10-1
 
 ---
 
+## First real call (2026-10-25, before Phase 5)
+
+`recordings/calls/20261025-145539`: real call, one person on the other side, headphones, 65 s. Latency 0.7–2.2 s per line, no echo duplicates, the remote voice stayed `Speaker 1` (0.50–0.85). Main problem: **meaning was lost at segment cuts**, not in ASR: `փաստաթ` | `Տերը, որ ձեզ ուղարկենք` → "The Lord sends you" (word split by the 8 s force-cut at the quietest frame), `ես էսօր բարելավել եմ` | `Ձայնային ճանաչման…` → "I got better today" (sentence split), `համակարգի օպտիմալացման` split at a ~0.7 s hesitation → `Դիմման եւ` → "Apply and".
+
+**Fixed** (segmenter defaults): `min_silence_ms` 600 → 1000, `max_segment_s` 8 → 12, force-cut in the longest pause (frames below `neg_threshold`) of the last 3 s, else after the least speech-like frame (was: quietest frame of the last 1 s). On the call all three errors above become whole sentences ("…and we're now preparing the documents to send to you", "I improved the speech recognition function today"). Podcast `yt_set` (22 min, YouTube-caption refs, FastConformer): WER/CER 37.4 / 17.8 % → 35.2 / 16.7 %; segments 235 → 151, mean 5.3 → 8.4 s, segments at the cap 105 → 41. Whole-clip ASR (no cuts) is 34.0 / 16.5 %, so the cuts now cost little ASR accuracy; the bigger gain is MT getting whole sentences (not measured: no English reference for the podcast).
+Cost: a long monologue now shows its first line up to ~13 s after it started (was ~9 s), and every line ends 0.4 s later (longer silence wait). Segment-end → print latency is unchanged apart from MT on longer input.
+
+### Still open after the call
+- **Hesitation pauses ≥ 1 s still split sentences** (`համակարգի օպտիմալ եւ` | `…ենթակառուցվածքը…`). → revise-the-last-line idea in Phase 2 above, or MT with the previous segment as context.
+- **Lone numbers / short answers**: `Քսաներեք։` → "It's twenty" (`Քսաներեք տարեկան եմ` → "I am twenty-three years old" is right). → MT with the previous line (the question) as context, or a numbers/short-reply table.
+- Leading `֊ ` dash in ASR output (FastConformer too, not only Whisper) → strip it.
+- Lines print in segment-end order, so a long remote line can appear after a later short `Me` line (`00:00:07 Me` before `00:00:04 Speaker 1`).
+
+---
+
 ## Resolved
-_(none yet)_
+- **Force-cut splits words / sentences** (Phase 2, Phase 3 items) → pause-based cut, 1 s silence, 12 s cap (see "First real call").
