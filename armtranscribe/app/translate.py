@@ -16,7 +16,7 @@ class CT2Translator:
     at 1.5x the source length + 10 tokens.
     """
 
-    def __init__(self, path: str, beam_size: int = 2, threads: int = 8):
+    def __init__(self, path: str, beam_size: int = 2, threads: int = 6):
         import ctranslate2
         import sentencepiece as spm
 
