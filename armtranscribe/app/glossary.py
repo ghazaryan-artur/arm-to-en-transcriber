@@ -6,25 +6,49 @@ replies, a few terms. Wrappers keep the backends swappable:
 """
 import re
 
-# Common Armenian first names, used without being asked for. Names that are also ordinary words
-# (Արա "hey/do", Անի "would do", Անուշ "sweet", Գոհար "gem", Սիրուն "pretty", Վարդ "rose",
-# Աստղիկ "little star", Շուշան "lily", Մարգարիտ "pearl", Արև "sun", Հասմիկ "jasmine", Վրեժ
-# "revenge", Իշխան "prince", Թագուհի "queen", Կարեն, Կարո ...) are left out.
+# Armenian first names (and Russian ones common in Armenia), recognised anywhere, with case
+# endings. Names that are much more often an ordinary word are in JAN_ONLY instead.
 COMMON_NAMES = """
-Աբրահամ Ադամ Ալբերտ Ալեքս Ալեքսանդր Ակսել Աղասի Աղաս Աշոտ Առաքել Արամ Արամայիս Արգիշտի Արեն Արթուր
-Արման Արմեն Արմենակ Արսեն Արշակ Արշավիր Արտակ Արտաշես Արտավազդ Արտյոմ Արտուր Բաբկեն Բորիս Գագիկ Գարիկ Գարեգին
-Գեղամ Գևորգ Գոռ Գուրգեն Գրիգոր Դավիթ Դերենիկ Դիանա Եդգար Եղիշե Երվանդ Զավեն Զորի Էդգար Էդուարդ Էդիկ Էմիլ
-Էրիկ Էրիկա Թաթուլ Թադևոս Ժիրայր Ժորա Իգոր Լևոն Լյովա Խաչատուր Խաչիկ Կամո Կարապետ Կոմիտաս Համլետ Հայկ
-Հայկազ Հակոբ Հարություն Հովհաննես Հովիկ Հովսեփ Հրաչ Հրաչյա Հրանտ Ղուկաս Մանվել Մանուկ Մարատ Մարտին Մերուժան
-Մկրտիչ Մհեր Միքայել Մուշեղ Մովսես Նարեկ Նիկոլ Նորայր Շանթ Պավել Պետրոս Ռաֆայել Ռաֆիկ Ռոբերտ Ռուբեն Ռուստամ
-Սամվել Սարգիս Սեդրակ Սերգեյ Սերոբ Սևակ Սիմոն Սուրեն Ստեփան Վազգեն Վահագն Վահե Վաչե Վարդան Վարուժան Վլադիմիր
-Տիգրան Տիրան Ֆելիքս
-Ալինա Ալլա Ալվարդ Անահիտ Աննա Անժելա Աննի Արմինե Արփինե Աստղինե Բելլա Գայանե Գոհարիկ Դիանա Եվա Զառա Զարուհի
-Էլեն Էլինա Էլիզա Էմմա Էվելինա Թամարա Ինգա Իննա Իրինա Լաուրա Լենա Լիանա Լիլիթ Լիլիա Լուսինե Լուսիկ
-Կարինե Հերմինե Հռիփսիմե Մանե Մանյա Մարգարիտա Մարիամ Մարիաննա Մարինե Մարի Մելանյա Մերի Մոնիկա Նաիրա
-Նանե Նարինե Նազելի Նելլի Նինա Նոնա Նունե Շողիկ Ջուլիետա Ռիտա Ռոզա Ռուզաննա Սաթենիկ Սեդա Սիրանուշ Սոնա Սոֆյա
-Սոֆի Սվետլանա Սյուզաննա Տաթև Քնարիկ Քրիստինե Օլգա Օֆելյա
+Աբգար Աբել Աբո Աբրահամ Ադամ Ազնիվ Ալբերտ Ալեն Ալեք Ալեքս Ալեքսան Ալեքսանդր Ալիկ Ակսել Ահարոն Աղասի Աղաս
+Ամբարձում Անդրանիկ Անդրեյ Անտոն Անուշավան Աշոտ Առաքել Առնակ Ավետ Ավետիս Ավետիք Արամ Արամայիս Արամե Արգամ
+Արգիշտի Արեգ Արեն Արթուր Արմեն Արմենակ Արման Արշակ Արշավիր Արսեն Արտակ Արտաշես Արտավազդ Արտեմ Արտյոմ Արտուր
+Արփիար Բաբկեն Բագրատ Բարսեղ Բենիամին Բորիս Գաբրիել Գագիկ Գալուստ Գառնիկ Գարեգին Գարիկ Գեղամ Գևորգ Գոռ
+Գուրգեն Գրիգոր Գրիշա Դանիել Դավիթ Դերենիկ Դմիտրի Եղիշե Եդգար Երվանդ Զավեն Զարեհ Զոհրաբ Զորի Էդգար Էդիկ
+Էդմոնդ Էդուարդ Էմիլ Էմմանուել Էրիկ Էրնեստ Թաթուլ Թադևոս Թորոս Ժիրայր Ժորա Ժորժ Իգոր Իվան Լևոն Լյովա
+Խաչատուր Խաչիկ Կամո Կառլեն Կարապետ Կարեն Կարո Կոլյա Կոմիտաս Կոստյա Կորյուն Հակոբ Համբարձում Համլետ Հայկ
+Հայկազ Հայկո Հարություն Հենրիկ Հովակիմ Հովհաննես Հովիկ Հովսեփ Հրաչ Հրաչյա Հրանտ Հրայր Ղազար Ղուկաս Մաքսիմ
+Մամիկոն Մանուկ Մանվել Մարատ Մարտին Մարտիրոս Մելիք Մերուժան Միխայիլ Միշա Միքայել Մկրտիչ Մհեր Մուշեղ Մովսես
+Նարեկ Ներսես Նիկոլ Նիկոլայ Նորայր Շանթ Շավարշ Պավել Պարույր Պետրոս Պողոս Ռաֆայել Ռաֆիկ Ռոբերտ Ռոման Ռուբեն
+Ռուդիկ Ռուստամ Սամվել Սաշա Սասուն Սարգիս Սեդրակ Սեյրան Սերգեյ Սերժ Սերոբ Սևակ Սիմոն Սլավիկ Սմբատ Սպարտակ
+Սուրեն Ստեփան Վաղարշակ Վաղինակ Վազգեն Վալերի Վահագն Վահան Վահե Վաչագան Վաչե Վարդան Վարուժան Վիգեն Վիկտոր
+Վլադիմիր Վոլոդյա Տարոն Տիգրան Տիրան Ֆելիքս Ֆրունզե Օնիկ Օհան
+Ադելինա Աիդա Ալինա Ալիսա Ալլա Ալվարդ Ամալյա Անահիտ Անգելինա Անժելա Աննա Աննի Անուշ Աշխեն Ասյա Աստղիկ Աստղինե
+Արաքսյա Արմինե Արուսյակ Արփի Արփինե Բելլա Գայանե Գոհար Գոհարիկ Գրետա Դիանա Եվա Եվգենյա Զառա Զարուհի Զինա
+Էլեն Էլենա Էլինա Էլիզա Էլմիրա Էմմա Էվելինա Էրիկա Թամար Թամարա Թաթև Թաթևիկ Ժաննա Ինգա Ինեսսա Իննա Իրինա
+Լալա Լաուրա Լենա Լիանա Լիդա Լիզա Լիլի Լիլիթ Լիլիա Լուիզա Լուսինե Լուսիկ Լյուդմիլա Ծովինար Կարինե Հասմիկ
+Հերմինե Հռիփսիմե Ձյունիկ Մանե Մանյա Մարգարիտ Մարգարիտա Մարգո Մարի Մարիամ Մարիաննա Մարինա Մարինե Մելանյա
+Մելինե Մերի Մոնիկա Նաիրա Նանե Նարե Նարինե Նաթալի Նատալյա Նազելի Նելլի Նինա Նոնա Նորա Նունե Նունուֆար Նվարդ
+Շողիկ Շուշան Շուշանիկ Ջեմմա Ջուլիետա Ռիմա Ռիտա Ռոզա Ռուզան Ռուզաննա Սաթենիկ Սառա Սեդա Սեվադա Սիլվա
+Սիրանուշ Սոնա Սոնյա Սոֆյա Սոֆի Սուսաննա Սվետա Սվետլանա Սյուզի Սյուզաննա Վարսենիկ Վերա Վիկտորյա Տաթև
+Տիգրանուհի Քնարիկ Քրիստինա Քրիստինե Օլգա Օֆելյա
 """
+
+# Names that are usually ordinary words in speech (Արա "hey / do!", Անի "would do", Սիրուն "pretty",
+# Արև "sun", Ազատ "free" ...): a name only right before ջան ("Արա ջան"), which is how people say them.
+JAN_ONLY = """
+Արա Անի Ազատ Ավագ Արև Արշալույս Գարուն Թագուհի Իշխան Ծաղիկ Մանուշակ Նվեր Սիրուն Սոս Վարդ Վրեժ Փայլակ
+"""
+
+# A capitalised word before ջան is taken as a name too (rare names), unless it is one of these.
+NOT_NAMES = set("""
+մամ մամա մամիկ մայրիկ մայր պապ պապա պապիկ հայրիկ հայր տատ տատի տատիկ ախպեր ախպերս եղբայր եղբայրս քույր
+քուրս քուրիկ բալես բալա բալիկ բալիկս ընկեր ընկերս ընկերուհի աղջիկ աղջիկս տղա տղաս որդի որդիս հոպար մորքուր
+հորքուր քեռի ձյաձյա ապեր ախչի ջիգյար սիրտս հոգիս արևս կյանքս սիրելիս սիրելի պարոն տիկին դոկտոր ուստա
+վարպետ բարեկամ հարևան կնիկ ամուսին մարդ երեխա թոռ թոռնիկ լավ շատ հա ու և էլ դե դու դուք
+""".split())
+
+# "Անուշ" is also "sweet": not a name in "անուշ եղի / լինի" (enjoy your meal), "անուշ երազներ".
+NAME_EXCEPTIONS = {"Անուշ": r"\s+(?:եղի|եղեք|լինի|լինեք|ըլնի|ըլնեք|երազ|քնեք|քնի)"}
 
 # Case endings a name can take (Գոռի, Գոռին, Գոռը, Գոռից, Աննայի, Լուսինեն ...)
 SUFFIXES = ["", "ը", "ն", "ի", "ին", "ից", "ով", "ում", "ս", "դ", "ենք", "ենց", "անց", "ու", "ուն", "ուց",
@@ -62,31 +86,57 @@ def _pattern(names) -> re.Pattern | None:
     """A whole word = one of `names` (any case) + a case ending; the longest name wins."""
     if not names:
         return None
-    alts = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    alts = "|".join(re.escape(n) + (f"(?!{NAME_EXCEPTIONS[n]})" if n in NAME_EXCEPTIONS else "")
+                    for n in sorted(names, key=len, reverse=True))
     sufs = "|".join(re.escape(s) for s in sorted(SUFFIXES, key=len, reverse=True))
     return re.compile(rf"(?<![\w-])({alts})({sufs})(?![\w-])", re.IGNORECASE)
 
 
+# word + ջան ("Արա ջան", "Գոհար ջան", also written together: "Արաջան")
+_JAN = re.compile(r"(?<![\w-])(\w+?)(\s+|-)?ջան(?![\w-])", re.IGNORECASE)
+
+
 class Names:
-    """Finds the built-in names (any case, with case endings) in Armenian text."""
+    """Finds names in Armenian text: built-in names (any case, with case endings) anywhere, and
+    before ջան also the names in JAN_ONLY and any other capitalised word."""
 
-    def __init__(self, names=None):
-        self.latin = {n: transliterate(n) for n in (names or COMMON_NAMES.split())}
-        self._by_lower = {n.lower(): n for n in self.latin}
-        self._pattern = _pattern(self.latin)
+    def __init__(self, names=None, jan_only=None):
+        names = names or COMMON_NAMES.split()
+        self._jan_only = {n.lower(): n for n in (jan_only if jan_only is not None else JAN_ONLY.split())}
+        self.latin = {n: transliterate(n) for n in [*names, *self._jan_only.values()]}
+        self._by_lower = {n.lower(): n for n in names}
+        self._pattern = _pattern(names)
 
-    def _sub(self, text: str, repl) -> str:
-        if not self._pattern:
-            return text
-        return self._pattern.sub(lambda m: repl(self._by_lower[m.group(1).lower()], m.group(2).lower()), text)
+    def _jan_name(self, word: str, sep: str | None) -> str | None:
+        """The name in "<word> ջան", or None if <word> is not one."""
+        low = word.lower()
+        if low in self._by_lower:
+            return self._by_lower[low]
+        if low in self._jan_only:
+            return self._jan_only[low]
+        if sep and word[:1].isupper() and low not in NOT_NAMES:  # a rare name, written apart from ջան
+            return word
+        return None
+
+    def _sub(self, text: str, repl, jan_repl) -> str:
+        def jan(m):
+            name = self._jan_name(m.group(1), m.group(2))
+            return jan_repl(name) if name else m.group(0)
+
+        text = _JAN.sub(jan, text)
+        if self._pattern:
+            text = self._pattern.sub(lambda m: repl(self._by_lower[m.group(1).lower()], m.group(2).lower()), text)
+        return text
 
     def capitalize(self, hy: str) -> str:
-        """գոռի -> Գոռի: ASR writes names in lowercase, MT then translates them as words."""
-        return self._sub(hy, lambda name, suf: name + suf)
+        """գոռի -> Գոռի, արա ջան -> Արա ջան: ASR writes names in lowercase, MT then translates them as words."""
+        return self._sub(hy, lambda name, suf: name + suf, lambda name: f"{name} ջան")
 
     def latinize(self, hy: str) -> str:
-        """Գոռի -> Gor-ի: NLLB keeps Latin names as they are and still reads the case ending."""
-        return self._sub(hy, lambda name, suf: self.latin[name] + (f"-{suf}" if suf else ""))
+        """Գոռի -> Gor-ի, Արա ջան -> Ara: NLLB keeps Latin names as they are and still reads the case
+        ending; "ջան" (dear) is dropped, NLLB would make it "Jan" or translate the name."""
+        return self._sub(hy, lambda name, suf: self.latin.get(name, transliterate(name)) + (f"-{suf}" if suf else ""),
+                         lambda name: self.latin.get(name, transliterate(name)))
 
 
 # One-word / stock replies NLLB pads or misreads ("Այո" -> "Yes, you did", "Ապրես" -> "You live").
@@ -102,7 +152,12 @@ SHORT_REPLIES = {
     "գիտեմ": "I know.", "հասկացա": "Got it.", "հասկանալի է": "Understood.", "հասկանալի ա": "Understood.",
     "ներողություն": "Sorry.", "կներեք": "Excuse me.", "մի րոպե": "Just a minute.",
     "մի վայրկյան": "Just a second.", "վատ չի": "Not bad.", "լավ է": "Good.", "լավ ա": "Good.",
+    "անուշ եղի": "Enjoy your meal!", "անուշ եղեք": "Enjoy your meal!", "անուշ լինի": "Enjoy!",
+    "անուշ ըլնի": "Enjoy!",
 }
+
+# "Արա," (without ջան) is the interjection "hey", which NLLB reads as the verb "do".
+HY_FIXES = [(re.compile(r"(?<![\w-])արա(?=\s*,)", re.IGNORECASE), "Hey")]
 
 # Terms NLLB translates wrongly, fixed in its output.
 EN_FIXES = [(re.compile(r"\bdrachma(s?)\b", re.IGNORECASE), r"dram\1")]
@@ -130,6 +185,8 @@ class GlossaryTranslator:
         self.mt, self.names = mt, names
 
     def _pre(self, hy: str) -> str:
+        for pattern, repl in HY_FIXES:
+            hy = pattern.sub(repl, hy)
         return self.names.latinize(hy) if self.names else hy
 
     @staticmethod

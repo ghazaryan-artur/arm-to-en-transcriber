@@ -1,4 +1,5 @@
-from app.glossary import COMMON_NAMES, GlossaryTranslator, Names, NamedTranscriber, SHORT_REPLIES, transliterate
+from app.glossary import (COMMON_NAMES, JAN_ONLY, GlossaryTranslator, Names, NamedTranscriber, SHORT_REPLIES,
+                          transliterate)
 
 
 def test_transliterate():
@@ -24,10 +25,27 @@ def test_longest_name_wins():
     assert Names().latinize("Աղասը") == "Aghas-ը"
 
 
-def test_ambiguous_names_are_not_built_in():
-    names = set(COMMON_NAMES.split())
-    assert not names & {"Արա", "Անի", "Անուշ", "Գոհար", "Ապրես", "Վրեժ"}
-    assert Names(["Աննա"]).latinize("Գոռ") == "Գոռ"
+def test_word_like_names_only_before_jan():
+    n = Names()
+    assert not set(COMMON_NAMES.split()) & set(JAN_ONLY.split())
+    assert n.latinize("Արա, լսի, արա էդ գործը") == "Արա, լսի, արա էդ գործը"   # "hey", "do"
+    assert n.capitalize("արա ջան, ինչ ես անում") == "Արա ջան, ինչ ես անում"
+    assert n.latinize("Արա ջան, ինչ ես անում") == "Ara, ինչ ես անում"          # ջան dropped for MT
+    assert n.latinize("Արաջան արի") == "Ara արի"
+
+
+def test_jan_marks_rare_capitalised_names_but_not_kin_words():
+    n = Names()
+    assert n.latinize("Ծատուր ջան, բարև") == "Tsatur, բարև"
+    assert n.latinize("Մամ ջան, արի") == "Մամ ջան, արի"
+    assert n.latinize("ծատուր ջան") == "ծատուր ջան"                            # lowercase unknown: not sure
+
+
+def test_gohar_and_anush_are_names_except_in_set_phrases():
+    n = Names()
+    assert n.latinize("Գոհարին ասա, Անուշը զանգեց") == "Gohar-ին ասա, Anush-ը զանգեց"
+    assert n.latinize("անուշ եղի, անուշ երազներ") == "անուշ եղի, անուշ երազներ"
+    assert SHORT_REPLIES["անուշ եղի"] == "Enjoy your meal!"
 
 
 class EchoMT:
@@ -67,3 +85,9 @@ def test_short_reply_inside_a_segment_is_kept():
     assert g.translate("Ապրես։ Աղաս դու ասա։") == "Thanks, well done! <Aghas դու ասա։> 150 drams"
     assert g.translate("Լավ։ Գնացինք։ Այո։") == "OK. <Գնացինք։> 150 drams Yes."
     assert g.translate("") == ""
+
+
+def test_ara_comma_is_hey():
+    mt = EchoMT()
+    GlossaryTranslator(mt, Names()).translate("Արա, էդ ինչ ես անում, արա")
+    assert mt.calls[-1] == "Hey, էդ ինչ ես անում, արա"
