@@ -13,7 +13,7 @@ A Python program for macOS that listens to a video call — your microphone and 
 | ASR | NVIDIA FastConformer (Armenian), chosen from 13 local models: CER 2.4–2.9% on read news and the author's voice, ~17% on a conversational podcast; 0.04–0.1 s per segment on the CPU |
 | Translation | NLLB-200 1.3B (CTranslate2 int8): chrF++ 66.0 on FLEURS from the reference Armenian, 70.7 end to end (speech → English) on the author's colloquial phrases; plus a glossary for names, English loanwords and one-word replies |
 | Speakers | ECAPA-TDNN embeddings + online clustering; stable labels on the test podcast and on real calls with 2 people on the call side |
-| Latency | real calls p50 1.4–2.2 s, p95 2.1 s; one 6.2 s p95 under CPU load, which led to the fallback-model switch |
+| Latency | current code, a recorded call replayed in real time on the Mac: p50 2.05 s, p95 3.23 s (limit 5 s); live calls before the last fixes p50 1.4–2.2 s, one p95 of 6.2 s under CPU load, which led to the fallback-model switch |
 
 Per-model numbers below; the reasoning and rejected alternatives are in the [app README](armtranscribe/README.md#models).
 

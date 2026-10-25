@@ -294,8 +294,9 @@ Measured on real calls (`--debug`, latency from the segment end, i.e. 0.2 s afte
 |---|---|---|
 | Calls 2–3 (2 people on the call side, 4 min) | 1.4 s | 2.1 s |
 | Call 6 (Zoom, 2 people on the call side, 2 min) | 2.2 s | 6.2 s |
+| **Call 6 replayed after Phase 5** (`tools/replay_live.py` on the Mac, from the end of the phrase, Zoom not running) | **2.05 s** | **3.23 s** |
 
-The call 6 tail came from ~30 s in which every stage ran 2–4× slower (CPU contention with Zoom; the thread count was ruled out with `tools/bench_mt_threads.py`). That is what the backpressure switch to NLLB-600M is for; it was added after that call, is covered by unit tests and a replay, and has not yet been exercised in a real overload. Earlier replays of the podcast (`tools/replay_live.py`, then with 0.6 s of silence) gave p50 1.3 s / p95 2.1 s, against p95 10.7 s with the previous Whisper ASR, whose repetition loops caused the tail.
+The call 6 tail came from ~30 s in which every stage ran 2–4× slower (CPU contention with Zoom; the thread count was ruled out with `tools/bench_mt_threads.py`). That is what the backpressure switch to NLLB-600M is for; it was added after that call (the replay above is the current code, measured as the brief defines latency), is covered by unit tests and a replay, and has not yet been exercised in a real overload. Earlier replays of the podcast (`tools/replay_live.py`, then with 0.6 s of silence) gave p50 1.3 s / p95 2.1 s, against p95 10.7 s with the previous Whisper ASR, whose repetition loops caused the tail.
 
 A long monologue is the other cost: a line is printed when the speaker pauses, so the first English of a 12 s sentence appears ~13 s after it started (still within 5 s of the end of that phrase).
 
