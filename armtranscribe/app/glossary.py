@@ -2,9 +2,11 @@
 replies, a few terms. Wrappers keep the backends swappable:
 
     asr = NamedTranscriber(asr, names)    # capitalises known names in the Armenian text, drops a leading dash
-    mt = GlossaryTranslator(mt, names)    # names -> Latin before MT, short replies, terms after MT
+    mt = GlossaryTranslator(mt, names)    # English words (terms.py) and names -> Latin before MT, short replies
 """
 import re
+
+from app.terms import englishize
 
 # Armenian first names (and Russian ones common in Armenia), recognised anywhere, with case
 # endings. Names that are much more often an ordinary word are in JAN_ONLY instead.
@@ -179,6 +181,10 @@ def _norm(hy: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", hy).split())
 
 
+def _sentences(text: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[։:?!.])\s+", text.strip()) if s]
+
+
 class NamedTranscriber:
     """Capitalises known names, drops the dialogue dash the ASR sometimes starts a line with and
     outputs of a single letter."""
@@ -200,6 +206,7 @@ class GlossaryTranslator:
     def _pre(self, hy: str) -> str:
         for pattern, repl in HY_FIXES:
             hy = pattern.sub(repl, hy)
+        hy = englishize(hy)
         return self.names.latinize(hy) if self.names else hy
 
     @staticmethod
@@ -214,7 +221,7 @@ class GlossaryTranslator:
         if not hy.strip():
             return ""
         out, rest = [], []
-        for sentence in re.split(r"(?<=[։:?!.])\s+", hy.strip()):
+        for sentence in _sentences(hy):
             if (reply := SHORT_REPLIES.get(_norm(sentence))) is not None:
                 if rest:
                     out.append(self._mt(" ".join(rest)))
@@ -227,7 +234,17 @@ class GlossaryTranslator:
         return " ".join(out)
 
     def _mt(self, hy: str) -> str:
-        return self._post(self.mt.translate(self._pre(hy)))
+        """Sentence by sentence: given two sentences NLLB often drops the second one entirely ("…,
+        vibe coding. I like Grok." -> only the first; 4 of 8 joined segments on the calls). A
+        "sentence" of one or two words is kept with its neighbour, so a stray full stop doesn't
+        cut a phrase into fragments."""
+        chunks: list[str] = []
+        for sentence in _sentences(self._pre(hy)):
+            if chunks and (len(sentence.split()) < 3 or len(chunks[-1].split()) < 3):
+                chunks[-1] += " " + sentence
+            else:
+                chunks.append(sentence)
+        return self._post(" ".join(self.mt.translate(c) for c in chunks))
 
     def translate_continuation(self, prev_hy: str, prev_en: str, hy: str) -> tuple[str, str]:
         if not hasattr(self.mt, "translate_continuation"):

@@ -109,3 +109,21 @@ def test_single_letter_asr_output_is_dropped():
 
     assert NamedTranscriber(ASR("Հ."), Names()).transcribe(None) == ""
     assert NamedTranscriber(ASR("Ու։"), Names()).transcribe(None) == "Ու։"
+
+
+def test_segment_is_translated_sentence_by_sentence():
+    mt = EchoMT()
+    g = GlossaryTranslator(mt, Names())
+    g.translate("Դրա համար կա էդ ամենը։ Ես սիրում եմ գրոկ։ Լավ։ Դե արի։ Մենք էլ ենք գալիս շուտով։")
+    # "Լավ" is a short reply on its own; "Դե արի" (2 words) stays with the next sentence
+    assert mt.calls == ["Դրա համար կա էդ ամենը։", "Ես սիրում եմ Grok։", "Դե արի։ Մենք էլ ենք գալիս շուտով։"]
+
+
+def test_terms_are_written_in_english_for_mt():
+    from app.terms import englishize
+
+    assert englishize("մեր սկիլերը, վեյբ կոտինգ, չատ ջիպիցի") == "մեր skill-երը, vibe coding, ChatGPT"
+    assert englishize("Սիրիս էյն էր, քսան միլիոն ռեյզարեցինք") == "Series A-ն էր, քսան միլիոն raised"
+    assert englishize("բագերը, ռելիզը, դեդլայնից, Լարավելով") == "bug-երը, release-ը, deadline-ից, Laravel-ով"
+    # Armenian words that only look alike are left alone
+    assert englishize("պատմության դասեր տասը գորգ փուշ ափ") == "պատմության դասեր տասը գորգ փուշ ափ"
