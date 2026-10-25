@@ -90,7 +90,7 @@ def test_short_reply_inside_a_segment_is_kept():
 def test_ara_comma_is_hey():
     mt = EchoMT()
     GlossaryTranslator(mt, Names()).translate("Արա, էդ ինչ ես անում, արա")
-    assert mt.calls[-1] == "Hey, էդ ինչ ես անում, արա"
+    assert mt.calls[-1] == "Hey, այդ ինչ ես անում, արա"
 
 
 def test_r_and_rr_are_interchangeable_in_names():
@@ -116,7 +116,7 @@ def test_segment_is_translated_sentence_by_sentence():
     g = GlossaryTranslator(mt, Names())
     g.translate("Դրա համար կա էդ ամենը։ Ես սիրում եմ գրոկ։ Լավ։ Դե արի։ Մենք էլ ենք գալիս շուտով։")
     # "Լավ" is a short reply on its own; "Դե արի" (2 words) stays with the next sentence
-    assert mt.calls == ["Դրա համար կա էդ ամենը։", "Ես սիրում եմ Grok։", "Դե արի։ Մենք էլ ենք գալիս շուտով։"]
+    assert mt.calls == ["Դրա համար կա այդ ամենը։", "Ես սիրում եմ Grok։", "Դե արի։ Մենք էլ ենք գալիս շուտով։"]
 
 
 def test_terms_are_written_in_english_for_mt():
@@ -127,3 +127,47 @@ def test_terms_are_written_in_english_for_mt():
     assert englishize("բագերը, ռելիզը, դեդլայնից, Լարավելով") == "bug-երը, release-ը, deadline-ից, Laravel-ով"
     # Armenian words that only look alike are left alone
     assert englishize("պատմության դասեր տասը գորգ փուշ ափ") == "պատմության դասեր տասը գորգ փուշ ափ"
+
+
+# --- numbers -> digits (app/numbers.py) ---
+
+from app.numbers import digitize  # noqa: E402
+
+
+def test_digitize_compounds_with_endings():
+    assert digitize("Քսաներեք։") == "23։"
+    assert digitize("Տասներկուսին։") == "12-ին։"
+    assert digitize("որ հիսուններկու երկիր") == "որ 52 երկիր"  # ASR doubles the ն
+    assert digitize("երկու հազար տասնութ թվականին") == "2018 թվականին"
+    assert digitize("հազար ինը հարյուր իննսունչորս") == "1994"
+    assert digitize("երեք հարյուր հիսուն հազար") == "350000"
+    assert digitize("մեր երեսուներորդ ռելիզը") == "մեր 30-րդ ռելիզը"
+    assert digitize("քսաներկրորդ") == "22-րդ"
+
+
+def test_digitize_dram_in_latin_only_without_ending():
+    assert digitize("Գինը երկու հազար հինգ հարյուր դրամ ա") == "Գինը 2500 dram ա"
+    assert digitize("հարյուր վաթսուն դրամով") == "160 դրամով"
+
+
+def test_digitize_leaves_small_and_non_numbers():
+    for text in ["մի երկու բան", "երեքով ենք", "ժամը երեքն անց կեսին", "հինգերորդ փորձ", "մի տասը րոպե",
+                 "հարյուր տոկոսով", "հինգշաբթի", "ինչ-որ մեկը", "մեկ երկու երեք", "Թիվ մինիսուն երկու"]:
+        assert digitize(text) == text
+
+
+def test_lone_number_is_printed_as_digits():
+    mt = EchoMT()
+    g = GlossaryTranslator(mt)
+    assert g.translate("Քսաներեք։") == "23." and mt.calls == []
+    g.translate("Տասներկուսին։")  # with an ending it goes to MT, as digits
+    assert mt.calls == ["12-ին։"]
+
+
+def test_colloquial_demonstratives_become_literary():
+    mt = EchoMT()
+    GlossaryTranslator(mt).translate("Էս լեգասի կոդը էսօր էդքան էլ չի աշխատում, էնտեղից ա, Էսի նոր ա։")
+    assert mt.calls == ["Այս լեգասի կոդը այսօր այդքան էլ չի աշխատում, այնտեղից ա, Սա նոր ա։"]
+    mt.calls.clear()
+    GlossaryTranslator(mt).translate("Էրեկ էսել էրկու ժամ սպասեցի։")  # էրեկ, էրկու, էսել are not demonstratives
+    assert mt.calls == ["Էրեկ էսել էրկու ժամ սպասեցի։"]

@@ -2,7 +2,7 @@
 # One-click setup: double-click in Finder (opens Terminal) or run ./setup.command.
 #
 # Creates armtranscribe/.venv with everything from requirements.txt and downloads the default models
-# (ASR: NVIDIA FastConformer, MT: NLLB-200 1.3B) into armtranscribe/models/. Safe to re-run: the venv is
+# (ASR: NVIDIA FastConformer, MT: NLLB-200 1.3B + 600M fallback, speaker embeddings: ECAPA) into armtranscribe/models/. Safe to re-run: the venv is
 # reused, models already in models/ are skipped. This and scripts/download_models.py are the
 # only steps that use the network; afterwards the transcriber runs offline.
 set -euo pipefail
@@ -28,8 +28,10 @@ echo "== Installing dependencies (first run downloads ~2 GB)"
 .venv/bin/python -m pip install --upgrade pip --quiet
 .venv/bin/python -m pip install -r requirements.txt
 
-echo "== Downloading the default models (first run: ~5 GB, NLLB is converted locally)"
+echo "== Downloading the default models (first run: ~8 GB, NLLB is converted locally)"
 .venv/bin/python scripts/download_models.py
+# the faster NLLB the app switches to while it falls behind (--mt-fast)
+.venv/bin/python scripts/download_models.py nllb-600m-ct2
 
 echo "== Audio devices"
 devices=$(.venv/bin/python -m app --list-devices)
@@ -41,5 +43,5 @@ if ! grep -q "BlackHole" <<<"$devices"; then
 fi
 
 echo
-echo "Done. Run the transcriber from this folder:"
-echo "  cd \"$(pwd)\" && source .venv/bin/activate && python -m app"
+echo "Done. Start the transcriber: double-click run.command (microphone + BlackHole), or from this folder:"
+echo "  cd \"$(pwd)\" && source .venv/bin/activate && python -m app --system BlackHole"

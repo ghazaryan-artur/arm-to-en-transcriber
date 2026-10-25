@@ -1,0 +1,122 @@
+[call] Քսաներեք։
+  ref    Twenty-three.
+  - words  It's twenty.
+  + digits 23.
+[call] Բնականաբար, մենք հույսով ենք, որ հիսուններկու երկիր, դաժը ավելի շատ կարանք մենք ծախենք մեր պրոդուկտը։
+  ref    Naturally, we hope we can sell our product in fifty-two countries, or even more.
+  + words  Of course, we hope to sell our product in 52 countries, the more we can.
+  + digits Of course, we hope to sell our product to 52 countries, maybe even more.
+[call] Հարյուր հիսուն դրամ։
+  ref    A hundred and fifty drams.
+  + words  One hundred and fifty drams.
+  + digits One hundred and fifty drams.
+[call] Տասներկուսին։
+  ref    At twelve.
+  + words  It's twelve.
+  - digits The 12th.
+[call] Ես հաց չեմ ուտում, ընդհանրապես, ես առնում եմ հարյուր վաթսուն դրամով լավ լավաշ։
+  ref    I don't eat bread at all, I buy good lavash for a hundred and sixty drams.
+  + words  I don't eat bread at all, I get a good loaf for 160 drams.
+  + digits I don't eat bread at all, I get a good loaf for 160 drams.
+[call] Եթե չեմ սխալվում, քսան միլիոն ռեյզ արեցինք, էդ առաջին մեծ ռաունդն էր։
+  ref    If I'm not mistaken, we raised twenty million, that was the first big round.
+  + words  If I'm not mistaken, 20 million raised, that was the first big round.
+  + digits If I'm not mistaken, 20 million raised, that was the first big round.
+[script] Գինը երկու հազար հինգ հարյուր դրամ ա, բայց զեղչով՝ երկու հազար։
+  ref    The price is two thousand five hundred drams, but with the discount it's two thousand.
+  + words  The price is two thousand five hundred drams, but with a discount, two thousand.
+  + digits The price is 2500 drams, but with a discount of 2000.
+[own] Ես քսանհինգ տարեկան եմ։
+  ref    I am twenty-five years old.
+  + words  I'm twenty five years old.
+  + digits I'm 25 years old.
+[own] Հանդիպումը ժամը տասնմեկին ա։
+  ref    The meeting is at eleven.
+  + words  The meeting is at eleven.
+  + digits The meeting is at 11:00.
+[own] Մեր թիմում տասնհինգ հոգի ա աշխատում։
+  ref    Fifteen people work in our team.
+  + words  We have 15 people on our team.
+  + digits We have 15 people on our team.
+[own] Ընկերությունը հիմնադրվել է երկու հազար տասնութ թվականին։
+  ref    The company was founded in 2018.
+  - words  The company was founded in 1818.
+  + digits The company was founded in 2018.
+[own] Երկու հազար քսանվեց թվականին ենք ռելիզ անելու։
+  ref    We're going to release in 2026.
+  - words  We're releasing in the year 2600.
+  + digits We're releasing it in 2026.
+[own] Էս հեռախոսը արժե երեք հարյուր հիսուն հազար դրամ։
+  ref    This phone costs three hundred and fifty thousand drams.
+  + words  This phone costs three hundred and fifty thousand drams.
+  + digits This phone costs 350,000 dram.
+[own] Մոտ քառասուն տոկոսը համաձայն չէր։
+  ref    About forty percent didn't agree.
+  + words  Nearly 40 percent disagreed.
+  + digits Nearly 40 percent disagreed.
+[own] Ես ծնվել եմ հազար ինը հարյուր իննսունչորս թվականին։
+  ref    I was born in 1994.
+  + words  I was born in the year nineteen hundred and ninety-four.
+  + digits I was born in 1994.
+[own] Մենք արդեն ունենք յոթանասուն հաճախորդ։
+  ref    We already have seventy clients.
+  + words  We already have 70 customers.
+  + digits We already have 70 clients.
+[own] Սա մեր երեսուներորդ ռելիզն ա։
+  ref    This is our thirtieth release.
+  + words  This is our 30th release.
+  + digits This is our 30th release.
+[own] Պատվերը կգա քսանութ օրից։
+  ref    The order will arrive in twenty-eight days.
+  + words  The order will be here in 28 days.
+  + digits The order comes in 28 days.
+[own] Ութսունհինգ տոկոս ճշգրտություն ունենք։
+  ref    We have eighty-five percent accuracy.
+  + words  We have an 85 percent accuracy.
+  + digits We have an 85 percent accuracy.
+[own] Վաթսուն հազար դրամ ա աշխատավարձը։
+  ref    The salary is sixty thousand drams.
+  + words  Sixty thousand drams is the salary.
+  + digits The salary is 60,000 dram.
+[own] Թիմում տասներկու ծրագրավորող կա, իսկ դիզայներ՝ երկու։
+  ref    There are twelve developers on the team and two designers.
+  + words  There are 12 programmers on the team, and two designers.
+  + digits There are 12 programmers on the team, and two designers.
+[own] Քսաներեքին ենք հանդիպելու։
+  ref    We'll meet on the twenty-third.
+  + words  See you on the 23rd.
+  + digits See you on the 23rd.
+[own] Իննսունինը տոկոսով համոզված եմ։
+  ref    I'm ninety-nine percent sure.
+  + words  Ninety-nine percent I'm sure of it.
+  + digits I'm 99 percent sure of it.
+[own] Քառասունհինգ րոպե ուշացավ։
+  ref    He was forty-five minutes late.
+  + words  Forty-five minutes late.
+  + digits He was 45 minutes late.
+[own] Էս տարի երեսունմեկ հազար օգտատեր ունենք։
+  ref    This year we have thirty-one thousand users.
+  + words  This year we have 31,000 users.
+  + digits This year, we have 31,000 users.
+[own] Ես իրեն տասնյոթ տարի ա ճանաչում եմ։
+  ref    I've known him for seventeen years.
+  + words  I've known him for seventeen years.
+  + digits I've known him for 17 years.
+[own] Մեր գրասենյակը տասնչորսերորդ հարկում ա։
+  ref    Our office is on the fourteenth floor.
+  + words  Our office is on the 14th floor.
+  + digits Our office is on the 14th floor.
+[own] Ամսական հիսուն հազար այցելու ունենք։
+  ref    We have fifty thousand visitors a month.
+  + words  We have 50,000 visitors a month.
+  + digits We have 50,000 visitors a month.
+[own] Հինգերորդ փորձն ա։
+  ref    It's the fifth attempt.
+  + words  Try number five.
+  + digits Try number five.
+[script] Էրեկ էրկու ժամ սպասեցի, հետո ասեցին՝ վաղը արի։
+  ref    Yesterday I waited two hours, then they said come back tomorrow.
+  + words  Yesterday I waited for two hours, and then they said, "Do it tomorrow".
+  + digits Yesterday I waited for two hours, and then they said, "Do it tomorrow".
+
+words: 27/30 numbers right, digits: 29/30 numbers right

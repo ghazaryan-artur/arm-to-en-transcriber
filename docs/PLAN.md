@@ -112,7 +112,7 @@ Goal: `python -m app.file sample.wav` prints HY + EN. No live audio yet — this
 1. Open a second `InputStream` on BlackHole with its own VAD segmenter → same job queue, `source="system"`, temporary label `System`.
 2. Test: play an Armenian YouTube interview through the Multi-Output Device while speaking into the mic. Both streams appear, correctly labelled, interleaved by time.
 3. Note: if you don't wear headphones the mic picks up the speakers → duplicates. Echo handling is out of scope; use headphones in the interview and mention this in README.
-4. ✅ **Done (Oct 24)**: `--system BlackHole` opens a second capture with its own Segmenter. Live test with the default output switched to the Multi-Output Device, a podcast playing and the user reading over it and alone: both streams labelled, latency p50 1.4 s / p95 2.65 s, 0 input overflows. Echo into the headset mic at full headphone volume → duplicates (see TECH_DEBT); a mic-side echo filter is a Phase 5 option.
+4. ✅ **Done (Oct 24)**: `--system BlackHole` opens a second capture with its own Segmenter. Live test with the default output switched to the Multi-Output Device, a podcast playing and the user reading over it and alone: both streams labelled, latency p50 1.4 s / p95 2.65 s, 0 input overflows. Echo into the headset mic at full headphone volume → duplicates (later fixed by the echo filter); a mic-side echo filter is a Phase 5 option.
 
 ---
 

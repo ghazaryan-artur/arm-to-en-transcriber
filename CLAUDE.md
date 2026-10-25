@@ -5,12 +5,11 @@ Workspace and git repository of the Armenian → English transcriber. **`armtran
 ## Layout
 
 ```
-armenian-transcriber/      repo root: README.md (overview: layout, how the work was done), .gitignore
+armenian-transcriber/      repo root: README.md (overview: layout, results, how the work was done), KNOWN_ISSUES.md (known, deliberately not fixed), .gitignore
   armtranscribe/           the program: package app/, tests/, scripts/, requirements, setup.command, README.md (setup, usage, models),
                            models/ and .venv/ (both gitignored; .venv is shared with tools/)
   docs/PLAN.md             design plan — source of truth for phases, parameters, tuning targets;
                            read the relevant phase before implementing a module
-  docs/TECH_DEBT.md        known weaknesses / open issues per phase
   chats/                   AI chat sessions, exported once at the very end (one .md each, full and unedited)
   tools/                   development tools, not part of the program: record_test.py (does my mic / BlackHole routing work);
                            benchmark data prep: fetch_fleurs.py, make_podcast_set.py (podcast clips + YouTube-caption references);

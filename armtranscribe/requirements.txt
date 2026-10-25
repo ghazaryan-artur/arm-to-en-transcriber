@@ -1,26 +1,32 @@
+# Versions pinned to the set the app was developed and tested with (MacBook Air M5, macOS, Python 3.11).
+
 # Audio capture & VAD
-sounddevice
-soundfile
-numpy
-soxr
-silero-vad
-torch
+sounddevice==0.5.6
+soundfile==0.14.0
+numpy==2.4.6
+soxr==1.1.0
+silero-vad==6.2.3
+torch==2.14.1
+torchaudio==2.11.0
 
 # ASR: NVIDIA FastConformer (ONNX, CPU); Whisper alternatives on Apple Silicon
-onnx-asr[cpu]
-mlx-whisper
+onnx-asr[cpu]==0.12.0
+onnxruntime==1.31.0
+mlx-whisper==0.4.3
+mlx==0.32.4
 
 # Translation
-ctranslate2
-transformers
-sentencepiece
+ctranslate2==4.8.3
+transformers==5.20.2
+sentencepiece==0.2.2
+huggingface_hub==2.3.0
 
 # Speaker identification
-speechbrain
+speechbrain==1.1.2
 
 # Terminal output
-rich
+rich==15.0.0
 
 # Benchmarks
-jiwer
-sacrebleu
+jiwer==4.0.0
+sacrebleu==2.6.0

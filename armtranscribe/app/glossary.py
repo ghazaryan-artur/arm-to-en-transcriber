@@ -2,10 +2,11 @@
 replies, a few terms. Wrappers keep the backends swappable:
 
     asr = NamedTranscriber(asr, names)    # capitalises known names in the Armenian text, drops a leading dash
-    mt = GlossaryTranslator(mt, names)    # English words (terms.py) and names -> Latin before MT, short replies
+    mt = GlossaryTranslator(mt, names)    # English words (terms.py), names -> Latin, numbers -> digits before MT, short replies
 """
 import re
 
+from app.numbers import digitize
 from app.terms import englishize
 
 # Armenian first names (and Russian ones common in Armenia), recognised anywhere, with case
@@ -170,6 +171,20 @@ SHORT_REPLIES = {
 # "Արա," (without ջան) is the interjection "hey", which NLLB reads as the verb "do".
 HY_FIXES = [(re.compile(r"(?<![\w-])արա(?=\s*,)", re.IGNORECASE), "Hey")]
 
+# Colloquial էս / էդ / էն ("this / that") -> literary այս / այդ / այն: NLLB reads a capitalised "Էս" as
+# a name ("Ace Vegas code"). Also in their compounds (էսօր today, էդքան so much, էնտեղ there ...)
+# and էսի / էդի / էնի (this one) -> սա / դա / նա.
+_DEMONSTRATIVE = re.compile(r"(?<![\w-])([Էէ])([սդն])(?:(օր|քան|պես|տեղ)(\w*)|(ի)|)(?![\w-])")
+
+
+def _literary(m: re.Match) -> str:
+    cap = m.group(1) == "Է"
+    if m.group(5):  # էսի -> սա
+        word = {"ս": "սա", "դ": "դա", "ն": "նա"}[m.group(2)]
+    else:
+        word = "այ" + m.group(2) + (m.group(3) or "") + (m.group(4) or "")
+    return word[0].upper() + word[1:] if cap else word
+
 # Terms NLLB translates wrongly, fixed in its output.
 EN_FIXES = [(re.compile(r"\bdrachma(s?)\b", re.IGNORECASE), r"dram\1")]
 
@@ -183,6 +198,14 @@ def _norm(hy: str) -> str:
 
 def _sentences(text: str) -> list[str]:
     return [s for s in re.split(r"(?<=[։:?!.])\s+", text.strip()) if s]
+
+
+def _lone_number(sentence: str) -> str | None:
+    """A sentence that is only a number (`Քսաներեք։`, an answer) is printed as digits: NLLB, given
+    `23։` alone, invents a sentence ("What is the meaning of the name?"). With a case ending
+    (`Տասներկուսին` "at twelve" / "on the 12th") it is left to MT, which can tell them apart better."""
+    d = _norm(digitize(sentence))
+    return d + "." if d.isdigit() else None
 
 
 class NamedTranscriber:
@@ -206,7 +229,8 @@ class GlossaryTranslator:
     def _pre(self, hy: str) -> str:
         for pattern, repl in HY_FIXES:
             hy = pattern.sub(repl, hy)
-        hy = englishize(hy)
+        hy = _DEMONSTRATIVE.sub(_literary, hy)
+        hy = englishize(digitize(hy))
         return self.names.latinize(hy) if self.names else hy
 
     @staticmethod
@@ -222,7 +246,7 @@ class GlossaryTranslator:
             return ""
         out, rest = [], []
         for sentence in _sentences(hy):
-            if (reply := SHORT_REPLIES.get(_norm(sentence))) is not None:
+            if (reply := SHORT_REPLIES.get(_norm(sentence)) or _lone_number(sentence)) is not None:
                 if rest:
                     out.append(self._mt(" ".join(rest)))
                     rest = []

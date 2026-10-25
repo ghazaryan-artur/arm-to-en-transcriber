@@ -63,3 +63,6 @@ tools/asr_bakeoff/venv2/
 .idea/
 *.swp
 .DS_Store
+
+# Translation caches of tools/numbers_mt/eval.py
+tools/numbers_mt/cache_*.json
