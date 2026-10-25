@@ -1,15 +1,9 @@
-from app.glossary import (COMMON_NAMES, GlossaryTranslator, Names, NamedTranscriber, SHORT_REPLIES, parse_names,
-                          transliterate)
+from app.glossary import COMMON_NAMES, GlossaryTranslator, Names, NamedTranscriber, SHORT_REPLIES, transliterate
 
 
 def test_transliterate():
     assert [transliterate(n) for n in ["Գոռ", "Աղաս", "Երվանդ", "Ոսկան", "Հովհաննես", "Գևորգ", "Ժիրայր", "Լուսինե"]] == \
         ["Gor", "Aghas", "Yervand", "Voskan", "Hovhannes", "Gevorg", "Zhirayr", "Lusine"]
-
-
-def test_parse_names():
-    assert parse_names(["Աղաս", "գոռ=Gor,Կարեն"]) == {"Աղաս": "Aghas", "Գոռ": "Gor", "Կարեն": "Karen"}
-    assert parse_names(None) == {}
 
 
 def test_names_with_case_endings_are_capitalised_and_latinised():
@@ -25,16 +19,15 @@ def test_words_that_only_start_like_a_name_are_left_alone():
     assert n.latinize("Հայկը") == "Hayk-ը"
 
 
-def test_user_names_win_over_built_in_ones():
-    assert Names().latinize("Աղասին") == "Aghasi-ն"                       # built-in Աղասի + ն
-    assert Names(parse_names(["Աղաս"])).latinize("Աղասին") == "Aghas-ին"   # user's Աղաս + ին
-    assert Names(parse_names(["Կարեն=Karen"])).latinize("կարենին") == "Karen-ին"
+def test_longest_name_wins():
+    assert Names().latinize("Աղասին") == "Aghasi-ն"   # Աղասի + ն, not Աղաս + ին
+    assert Names().latinize("Աղասը") == "Aghas-ը"
 
 
 def test_ambiguous_names_are_not_built_in():
     names = set(COMMON_NAMES.split())
     assert not names & {"Արա", "Անի", "Անուշ", "Գոհար", "Ապրես", "Վրեժ"}
-    assert not Names(common=False).latinize("Գոռ").startswith("Gor")
+    assert Names(["Աննա"]).latinize("Գոռ") == "Գոռ"
 
 
 class EchoMT:
@@ -70,7 +63,7 @@ def test_named_transcriber():
 
 def test_short_reply_inside_a_segment_is_kept():
     mt = EchoMT()
-    g = GlossaryTranslator(mt, Names(parse_names(["Աղաս"])))
+    g = GlossaryTranslator(mt, Names())
     assert g.translate("Ապրես։ Աղաս դու ասա։") == "Thanks, well done! <Aghas դու ասա։> 150 drams"
     assert g.translate("Լավ։ Գնացինք։ Այո։") == "OK. <Գնացինք։> 150 drams Yes."
     assert g.translate("") == ""

@@ -9,8 +9,7 @@ import re
 # Common Armenian first names, used without being asked for. Names that are also ordinary words
 # (Արա "hey/do", Անի "would do", Անուշ "sweet", Գոհար "gem", Սիրուն "pretty", Վարդ "rose",
 # Աստղիկ "little star", Շուշան "lily", Մարգարիտ "pearl", Արև "sun", Հասմիկ "jasmine", Վրեժ
-# "revenge", Իշխան "prince", Թագուհի "queen", Կարեն, Կարո ...) are left out: pass them with
-# --names when someone in the call has one.
+# "revenge", Իշխան "prince", Թագուհի "queen", Կարեն, Կարո ...) are left out.
 COMMON_NAMES = """
 Աբրահամ Ադամ Ալբերտ Ալեքս Ալեքսանդր Ակսել Աղասի Աղաս Աշոտ Առաքել Արամ Արամայիս Արգիշտի Արեն Արթուր
 Արման Արմեն Արմենակ Արսեն Արշակ Արշավիր Արտակ Արտաշես Արտավազդ Արտյոմ Արտուր Բաբկեն Բորիս Գագիկ Գարիկ Գարեգին
@@ -59,17 +58,6 @@ def transliterate(name: str) -> str:
     return "".join(out).capitalize()
 
 
-def parse_names(specs: list[str] | None) -> dict[str, str]:
-    """`["Աղաս", "Գոռ=Gor"]` -> {"Աղաս": "Aghas", "Գոռ": "Gor"}; also accepts comma-separated items."""
-    names = {}
-    for spec in specs or []:
-        for item in filter(None, (x.strip() for x in spec.split(","))):
-            arm, _, latin = item.partition("=")
-            arm = arm.strip()
-            names[arm[:1].upper() + arm[1:]] = latin.strip() or transliterate(arm)
-    return names
-
-
 def _pattern(names) -> re.Pattern | None:
     """A whole word = one of `names` (any case) + a case ending; the longest name wins."""
     if not names:
@@ -80,23 +68,17 @@ def _pattern(names) -> re.Pattern | None:
 
 
 class Names:
-    """Finds names (any case, with case endings) in Armenian text.
+    """Finds the built-in names (any case, with case endings) in Armenian text."""
 
-    Names given by the user are matched first: with --names Աղաս, Աղասին is Աղաս + ին, not the
-    built-in Աղասի + ն.
-    """
-
-    def __init__(self, extra: dict[str, str] | None = None, common: bool = True):
-        extra = extra or {}
-        self.latin = {n: transliterate(n) for n in COMMON_NAMES.split()} if common else {}
-        self.latin.update(extra)
+    def __init__(self, names=None):
+        self.latin = {n: transliterate(n) for n in (names or COMMON_NAMES.split())}
         self._by_lower = {n.lower(): n for n in self.latin}
-        self._patterns = [p for p in (_pattern(extra), _pattern(set(self.latin) - set(extra))) if p]
+        self._pattern = _pattern(self.latin)
 
     def _sub(self, text: str, repl) -> str:
-        for p in self._patterns:
-            text = p.sub(lambda m: repl(self._by_lower[m.group(1).lower()], m.group(2).lower()), text)
-        return text
+        if not self._pattern:
+            return text
+        return self._pattern.sub(lambda m: repl(self._by_lower[m.group(1).lower()], m.group(2).lower()), text)
 
     def capitalize(self, hy: str) -> str:
         """գոռի -> Գոռի: ASR writes names in lowercase, MT then translates them as words."""

@@ -1,6 +1,6 @@
 """Replay an audio file through the live Pipeline in real time (stand-in for the mic) and report latency.
 
-    python tools/replay_live.py <audio> [seconds] [--asr name] [--mt name] [--names ...]
+    python tools/replay_live.py <audio> [seconds] [--asr name] [--mt name]
 
 Feeds the first `seconds` (default 120) at wall-clock pace, prints every line with per-stage timings
 and ends with latency p50/p95 (segment end -> printed), as `python -m app --debug` would.

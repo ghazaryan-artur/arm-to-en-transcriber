@@ -26,16 +26,13 @@ def resolve_model(spec: str) -> str:
 def add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--asr", default=DEFAULT_ASR, help=f"ASR model name in models/ or path (default {DEFAULT_ASR})")
     p.add_argument("--mt", default=DEFAULT_MT, help=f"translation model name in models/ or path (default {DEFAULT_MT})")
-    p.add_argument("--names", nargs="+", metavar="NAME[=Latin]",
-                   help="names of people in the call, e.g. --names Աղաս Գոռ=Gor (common Armenian names are "
-                        "built in; add rare ones and names that are also ordinary words)")
 
 
-def with_glossary(asr, mt, args):
+def with_glossary(asr, mt, args=None):
     """Wrap the models: names capitalised in HY and kept as names in EN, short replies, term fixes."""
-    from app.glossary import GlossaryTranslator, Names, NamedTranscriber, parse_names
+    from app.glossary import GlossaryTranslator, Names, NamedTranscriber
 
-    names = Names(parse_names(args.names))
+    names = Names()
     return NamedTranscriber(asr, names), GlossaryTranslator(mt, names)
 
 
@@ -122,9 +119,6 @@ def main() -> None:
     if "system" in captures:
         print(f"System audio: {captures['system'].name}"
               + f" (speakers: threshold {args.spk_threshold})")
-    if args.names:
-        from app.glossary import parse_names
-        print("Names: " + ", ".join(f"{a} = {b}" for a, b in parse_names(args.names).items()))
     if recorder:
         print(f"Saving to {recorder.dir}")
     print("Listening, Ctrl+C to stop\n", flush=True)
