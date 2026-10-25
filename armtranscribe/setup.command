@@ -7,6 +7,7 @@
 # only steps that use the network; afterwards the transcriber runs offline.
 set -euo pipefail
 cd "$(dirname "$0")"
+source scripts/terminal.sh  # closes this window at the end when double-clicked in Finder
 trap 'echo; echo "Setup failed (see the error above). Fix it and run setup.command again."' ERR
 
 # Finder-launched Terminals may not have Homebrew on PATH, so also look in its usual places
@@ -45,3 +46,10 @@ fi
 echo
 echo "Done. Start the transcriber: double-click run.command (microphone + BlackHole), or from this folder:"
 echo "  cd \"$(pwd)\" && source .venv/bin/activate && python -m app --system BlackHole"
+
+if [ "$OPENED_FROM_FINDER" = 1 ]; then
+  echo
+  read -r -n 1 -s -p "Press any key to close this window." || true
+  echo
+  close_window_on_exit
+fi

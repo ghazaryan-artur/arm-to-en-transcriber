@@ -11,7 +11,7 @@ Problems we know about, understand, and could fix, but deliberately don't within
 - **The microphone is chosen once at startup.** Switching the mic in the call app later doesn't switch it in the transcriber.
   *Fix:* follow the system default input, or reopen on change.
 - **No system-audio-only mode.** The mic is always captured; listening on speakers with your mic muted in the call still records the room. *Why left:* the brief needs both sources. *Fix:* a `--no-mic` flag (~10 min).
-- **Echo while both talk.** Call audio leaking into the mic is dropped only when the mic segment is a clear copy of it; if you speak at the same time, the other side's words can mix into your `Me` line. *Why left:* echo handling is out of scope per the brief. *Fix:* a real acoustic echo canceller (WebRTC AEC3) on the mic stream.
+- **Echo while both talk.** Call audio leaking into the mic is dropped only when the mic segment is a clear copy of it; if you speak at the same time, the other side's words can mix into your `Me` line. Seen in the rehearsal: Gor's first sentence also appeared at the end of a `Me` line that continued Artur's. *Why left:* echo handling is out of scope per the brief. *Fix:* a real acoustic echo canceller (WebRTC AEC3) on the mic stream.
 - **Two clocks.** Mic and BlackHole are separate CoreAudio clocks; lines from both at the same second can print in either order, and drift would matter only in hour-long sessions.
 
 ## Segmentation and output
@@ -23,6 +23,7 @@ Problems we know about, understand, and could fix, but deliberately don't within
 
 ## Speakers
 
+- **Similar voices and excited speech split one person** (rehearsal, Zoom, Gor + Aghas: 4 speakers instead of 2). On the recorded calls the two voices score up to 0.5–0.6 against each other, and one person laughing or excited can drop to ~0.3–0.4 against their own centroid, so no single threshold separates them cleanly. The grey zone (0.35–0.45 → nearest speaker) removes the phantom seen in an earlier call; whether it removes the rehearsal's Speaker 3 / 4 can't be checked, that session wasn't saved. *Why left:* better separation needs a stronger embedding model or diarization fine-tuned on call audio and a labelled test set. *Fix:* record sessions with `--save-audio`, label them, tune; enrol each voice from its first long segment with several embeddings instead of one centroid.
 - **A new person's first short replies** (< 3 s) go to an already known speaker, or to `Speaker ?` before the first one exists. *Why left:* the 3 s rule is what keeps laughs and cross-talk from creating phantom speakers; the alternative needs a labelled test set. *Fix:* a pending candidate opened by a short unknown segment, confirmed by the next matching one.
 - **Speaker change inside one segment** (fast turn-taking without a pause): the whole segment gets one label, so short answers inside the asker's segment are attributed to the asker. *Fix:* sliding 1.5 s embeddings to find the change point and split before ASR, or a diarization model trained on turn-taking.
 - **Segments under 1 s** are too short for a reliable embedding and keep the previous label.
@@ -34,6 +35,7 @@ Problems we know about, understand, and could fix, but deliberately don't within
 - **Numbers the ASR mishears** (`հիսուներկու` → `մինիսուն երկու`) can't be repaired by the digit conversion. A lone number with a case ending is ambiguous (`Տասներկուսին` → "The 12th." where "At twelve." was meant).
 - **Names outside the built-in list** (without `ջան`) are still translated as words.
 - **Overlapping speech** on one stream can't be separated.
+- **Noise read as an abbreviation** (`Հովհ.` → "How can we do this?") still passes the single-letter filter.
 - **Western Armenian** is not supported or tested.
 
 ## Performance and resources

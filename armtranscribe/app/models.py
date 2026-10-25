@@ -13,6 +13,7 @@ class Segment:
     t_end: float
     audio: np.ndarray    # float32 mono @ SAMPLE_RATE
     speech_end: float | None = None  # end of the last speech frame (t_end minus trailing silence)
+    queued: float | None = None      # session time the segmenter handed it to the pipeline
 
     @property
     def phrase_end(self) -> float:

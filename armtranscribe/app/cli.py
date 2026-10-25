@@ -3,7 +3,11 @@ import argparse
 import os
 import sys
 import time
+import warnings
 from pathlib import Path
+
+# Silero VAD loads its TorchScript model with torch.jit.load, which torch now flags on every start
+warnings.filterwarnings("ignore", message=r".*torch\.jit\.load.*deprecated", category=FutureWarning)
 
 # Local-only rule: models are downloaded once by scripts/download_models.py,
 # at runtime nothing may go over the network (no cloud ASR/MT, no hub calls).

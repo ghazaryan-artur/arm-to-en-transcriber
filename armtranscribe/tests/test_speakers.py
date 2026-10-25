@@ -14,7 +14,7 @@ def voice(base, noise=0.3):
 
 def make(embed, **kw):
     """Tracker with the limits the cases below are written for (the defaults are tuned on real audio)."""
-    return OnlineSpeakerTracker(embed, **{"threshold": 0.55, "min_new_s": 1.5, **kw})
+    return OnlineSpeakerTracker(embed, **{"threshold": 0.55, "min_new_s": 1.5, "new_margin": 0.0, **kw})
 
 
 def audio(seconds):
@@ -95,3 +95,15 @@ def test_first_speaker_also_needs_min_new_seconds():
     assert t.assign(np.zeros(int(1.2 * 16000), np.float32)) == UNKNOWN
     assert t.last.how == "short" and not t.speakers
     assert t.assign(np.zeros(3 * 16000, np.float32)) == "Speaker 1"
+
+
+def test_grey_zone_goes_to_the_nearest_speaker_without_moving_it():
+    e1, e2 = np.eye(4)[0], np.eye(4)[1]
+    known_excited = 0.4 * e1 + np.sqrt(1 - 0.16) * e2   # similarity 0.40: between 0.35 and 0.45
+    new_voice = 0.3 * e1 + np.sqrt(1 - 0.09) * e2       # similarity 0.30: below 0.35
+    t = OnlineSpeakerTracker(Script(e1, known_excited, new_voice), threshold=0.45)  # default margin 0.10
+    long = np.zeros(4 * 16000, np.float32)
+    assert t.assign(long) == "Speaker 1"
+    assert t.assign(long) == "Speaker 1" and t.last.how == "unsure"
+    assert np.allclose(t.speakers[0].centroid, e1)      # centroid not moved by the unsure segment
+    assert t.assign(long) == "Speaker 2"

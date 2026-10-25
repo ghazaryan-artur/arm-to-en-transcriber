@@ -24,9 +24,9 @@ git clone https://github.com/ghazaryan-artur/arm-to-en-transcriber.git
 open arm-to-en-transcriber/armtranscribe/setup.command     # or double-click it in Finder
 ```
 
-1. `setup.command` installs everything into `armtranscribe/.venv` and downloads the models (first run 15–30 min, depends on the connection).
+1. `setup.command` installs everything into `armtranscribe/.venv` and downloads the models (first run 15–30 min, depends on the connection). At the end a key press closes its window (on an error the window stays open).
 2. Once, in **Audio MIDI Setup**, create a Multi-Output Device = headphones + BlackHole 2ch, and pick it as the speaker in the call app ([step 3](#3-system-audio-the-other-side-of-the-call)).
-3. Double-click **`armtranscribe/run.command`**. When it prints `Ready, listening`, talk. Ctrl+C stops.
+3. Double-click **`armtranscribe/run.command`**. When it prints `Ready, listening`, talk. Ctrl+C stops the session; then Enter starts a new one, any other key closes the window.
 
 The rest of this section explains each step in detail.
 
@@ -123,7 +123,7 @@ python -m app.file recording.wav [--speakers]         # offline: transcribe + tr
 
 Other models: `python scripts/download_models.py --list` and `python scripts/download_models.py <name>` (for example `whisper-turbo-hy-mlx`, the previous ASR default, then `--asr whisper-turbo-hy-mlx`).
 
-Stop with **Ctrl+C**: segments already captured are still finished; a second Ctrl+C quits at once.
+Stop with **Ctrl+C**: segments already captured are still finished; a second Ctrl+C quits at once. `run.command` then asks: **Enter** starts a new session (speaker numbers start again from 1), any other key quits and, when it was double-clicked, closes the window. The first time a window closes itself macOS may ask to let Terminal control Terminal: allow it.
 
 ### What you see
 
@@ -178,10 +178,10 @@ English words said in Armenian (`չատ ջիպիթի`, `վեյբ կոդինգ`, 
 - **Segmentation** (`vad.py`): Silero VAD on 32 ms frames, one segmenter per stream. A segment starts at speech (with 0.25 s of pre-roll) and ends after **1 s of silence**; continuous speech is force-cut at **12 s**, in the longest pause of the last 3 s, so words and sentences are kept whole. Segments under 0.4 s are dropped. These values come from the first real call, where shorter pauses split sentences and the translation lost their meaning.
 - **Echo filter** (`echo.py`): the last 40 s of the system stream are kept; a mic segment whose normalised cross-correlation with it is ≥ 0.3 is call audio leaking into the mic and is dropped before ASR (leaked audio 0.37–0.59 on recorded calls, own speech ≤ 0.16).
 - **ASR** (`asr.py`): one worker thread, segments in end-time order. NVIDIA FastConformer through `onnx-asr` on the CPU, with punctuation and capitalisation. `glossary.NamedTranscriber` fixes name capitalisation and drops dialogue dashes and single-letter output.
-- **Speaker ID** (`speakers.py`), system stream only: a 192-d ECAPA embedding per segment, compared by cosine similarity with each known speaker's running-mean centroid. ≥ 0.45 → that speaker; otherwise a new `Speaker N`, but only from a segment ≥ 3 s. Segments < 1 s keep the previous label.
+- **Speaker ID** (`speakers.py`), system stream only: a 192-d ECAPA embedding per segment, compared by cosine similarity with each known speaker's running-mean centroid. ≥ 0.45 → that speaker (centroid updated); 0.35–0.45 → the nearest speaker, centroid left alone (a known voice laughing or excited, or two voices mixed: on the recorded calls a 3.5 s line of a known speaker scored 0.39 and used to become a phantom speaker); below 0.35 → a new `Speaker N`, but only from a segment ≥ 3 s. Segments < 1 s keep the previous label.
 - **Lines** (`pipeline.py`): a segment from the same source and speaker within ~2 s of silence continues the previous line (max 3 segments / 30 s). It is translated with only the segment before as context, with that segment's English forced as the prefix, so the English already shown doesn't change and MT time doesn't grow with the line.
 - **Translation** (`translate.py`, `glossary.py`, `terms.py`): NLLB-200 1.3B in CTranslate2 int8, 6 threads, beam 2, `no_repeat_ngram_size=4` and an output length cap (against repetition loops). Sentence by sentence, with names and English loanwords pre-written in Latin script, numbers above ten as digits, colloquial `էս/էդ/էն` as literary forms, one-word replies from a table.
-- **Backpressure** (`pipeline.py`): the lag is measured when MT starts; at ≥ 2.5 s behind, the app warns and translates with NLLB-600M (≈ 2× faster) until the lag is ≤ 1 s.
+- **Backpressure** (`pipeline.py`): when MT starts, the app measures how long the segment has waited since the VAD handed it over (normally 0.1–0.2 s: ASR + speaker ID). At ≥ 1.5 s it warns and translates with NLLB-600M (≈ 2× faster) until the wait is ≤ 0.5 s.
 - **Output** (`output.py`): blocks with time, speaker, HY, EN; a continued line is redrawn in place when nothing else was printed after it.
 - **Startup** (`cli.py`): sets offline mode before any model import, loads every model and runs a warm-up call through each and prints `Ready` only then. Ctrl+C finishes the queued segments; a second one quits.
 

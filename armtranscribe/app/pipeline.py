@@ -25,10 +25,13 @@ MERGE_GAP_S = 1.5     # segment start - previous segment end; ≈ a pause of up 
 MERGE_MAX = 3         # segments per line, at most
 MERGE_MAX_S = 30.0    # audio per line, at most (MT time grows with the text)
 
-# Backpressure: when a segment reaches MT this long after it ended (both sides talking, the CPU busy
-# with the call app), translate with the faster model until the lag is back under CAUGHT_UP_S.
-BEHIND_S = 2.5
-CAUGHT_UP_S = 1.0
+# Backpressure: when a segment reaches MT this long after the segmenter handed it over (both sides
+# talking, the CPU busy with the call app), translate with the faster model until the wait is back
+# under CAUGHT_UP_S. Measured from hand-over, not from the end of the phrase: that would include the
+# ~1 s of silence the VAD always waits, and the app could never count as caught up (seen in the
+# rehearsal: 3 minutes on the fast model). Normal wait at MT start: ASR + speaker ID, 0.1-0.2 s.
+BEHIND_S = 1.5
+CAUGHT_UP_S = 0.5
 
 
 @dataclass
@@ -153,6 +156,7 @@ class Pipeline:
 
     def _put(self, segments: list[Segment]) -> None:
         for seg in segments:
+            seg.queued = self.clock()
             self.segments.put(seg)
 
     def _asr_loop(self) -> None:
@@ -233,7 +237,7 @@ class Pipeline:
             seg, hy, asr_s, speaker, spk_s, spk_info = item
             line = self._line(seg, hy, speaker)
             text = " ".join(line.hy)
-            mt = self._pick_mt(self.clock() - seg.phrase_end)
+            mt = self._pick_mt(self.clock() - (seg.t_end if seg.queued is None else seg.queued))
             t = time.perf_counter()
             try:
                 self._translate(line, mt)
