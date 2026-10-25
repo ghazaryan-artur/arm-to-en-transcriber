@@ -246,7 +246,7 @@ def test_continuation_uses_translate_continuation_with_what_was_shown():
 
         def translate_continuation(self, prev_hy, prev_en, hy):
             self.calls.append((prev_hy, prev_en, hy))
-            return f"{prev_en} +{hy}"
+            return prev_en.rstrip("."), f"+{hy}"
 
     mt, results = ContextMT(), []
     p = Pipeline(FakeASR(), mt, results.append)
@@ -254,5 +254,14 @@ def test_continuation_uses_translate_continuation_with_what_was_shown():
                                     (3.0, SILENCE))), Segmenter("mic", speech_prob=fake_prob))
     p.start()
     p.stop()
-    assert mt.calls == [("hy1", "en1", "hy2"), ("hy1 hy2", "en1 +hy2", "hy3")]
+    # context = only the segment before (MT time stays bounded), with its own English
+    assert mt.calls == [("hy1", "en1", "hy2"), ("hy2", "+hy2", "hy3")]
     assert [r.en for r in results] == ["en1", "en1 +hy2", "en1 +hy2 +hy3"]
+
+
+def test_join_en():
+    from app.pipeline import join_en
+
+    assert join_en("We hope", "that it works.") == "We hope that it works."
+    assert join_en("Yes", ", of course.") == "Yes, of course."
+    assert join_en("", "Hi.") == "Hi." and join_en("Hi.", "") == "Hi."

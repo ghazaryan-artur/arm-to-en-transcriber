@@ -34,7 +34,19 @@ class _Line:
     t_end: float
     hy: list[str] = field(default_factory=list)
     audio_s: float = 0.0
-    en: str = ""          # translation of the line so far (what was printed last)
+    en_done: str = ""     # English of all but the last segment
+    en_last: str = ""     # English of the last segment
+
+    @property
+    def en(self) -> str:
+        return join_en(self.en_done, self.en_last)
+
+
+def join_en(a: str, b: str) -> str:
+    """Join English pieces; a piece starting with punctuation attaches without a space."""
+    if not a or not b:
+        return a or b
+    return a + ("" if b[0] in ",.;:!?" else " ") + b
 
 
 class Pipeline:
@@ -164,20 +176,26 @@ class Pipeline:
         last = self._lines.get(seg.source)
         if (last and last.speaker == speaker and seg.t_start - last.t_end <= MERGE_GAP_S
                 and len(last.hy) < MERGE_MAX and last.audio_s + audio_s <= MERGE_MAX_S):
-            line = _Line(last.id, speaker, last.t_start, seg.t_end, last.hy + [hy], last.audio_s + audio_s, last.en)
+            line = _Line(last.id, speaker, last.t_start, seg.t_end, last.hy + [hy], last.audio_s + audio_s,
+                         last.en_done, last.en_last)
         else:
             self._n_lines += 1
             line = _Line(self._n_lines, speaker, seg.t_start, seg.t_end, [hy], audio_s)
         self._lines[seg.source] = line
         return line
 
-    def _translate(self, line: _Line) -> str:
+    def _translate(self, line: _Line) -> None:
+        """Translate the line's last segment. A continuation is translated with the segment before
+        it as context (only that one: MT time stays bounded however long the line gets) and keeps
+        the English already shown."""
         if len(line.hy) == 1:
-            return self.mt.translate(line.hy[0])
-        prev_hy, hy = " ".join(line.hy[:-1]), line.hy[-1]
-        if hasattr(self.mt, "translate_continuation"):  # keeps the part already shown
-            return self.mt.translate_continuation(prev_hy, line.en, hy)
-        return self.mt.translate(f"{prev_hy} {hy}")
+            line.en_last = self.mt.translate(line.hy[0])
+            return
+        if hasattr(self.mt, "translate_continuation"):
+            head, added = self.mt.translate_continuation(line.hy[-2], line.en_last, line.hy[-1])
+        else:
+            head, added = line.en_last, self.mt.translate(line.hy[-1])
+        line.en_done, line.en_last = join_en(line.en_done, head), added
 
     def _mt_loop(self) -> None:
         while (item := self._texts.get()) is not _STOP:
@@ -186,11 +204,10 @@ class Pipeline:
             text = " ".join(line.hy)
             t = time.perf_counter()
             try:
-                en = self._translate(line)
+                self._translate(line)
             except Exception as e:
                 notice(f"MT error at {seg.t_start:.1f} s: {e!r}")
-                en = line.en
-            line.en = en
+            en = line.en
             mt_s = time.perf_counter() - t
             try:
                 if self.recorder:

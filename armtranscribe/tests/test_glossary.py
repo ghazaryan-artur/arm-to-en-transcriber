@@ -58,7 +58,7 @@ class EchoMT:
 
     def translate_continuation(self, prev_hy, prev_en, hy):
         self.calls.append((prev_hy, prev_en, hy))
-        return f"{prev_en} <{hy}> drachma"
+        return prev_en, f"<{hy}> drachma"
 
 
 def test_glossary_translator():
@@ -67,7 +67,7 @@ def test_glossary_translator():
     assert g.translate("Ապրե՛ս։") == SHORT_REPLIES["ապրես"] and mt.calls == []
     assert g.translate("Այո") == "Yes."
     assert g.translate("գոռի հարցը") == "<Gor-ի հարցը> 150 drams"
-    assert g.translate_continuation("գոռը", "Gor", "եկավ") == "Gor <եկավ> dram"
+    assert g.translate_continuation("գոռը", "Gor", "եկավ") == ("Gor", "<եկավ> dram")
     assert mt.calls[-1] == ("Gor-ը", "Gor", "եկավ")
 
 

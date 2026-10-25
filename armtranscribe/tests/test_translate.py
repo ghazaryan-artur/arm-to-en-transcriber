@@ -70,7 +70,7 @@ def scripted_translator(outputs):
 
 def test_continuation_keeps_shown_part_and_drops_its_full_stop():
     t = scripted_translator([["▁will", "▁be", "▁known."]])
-    assert t.translate_continuation("ա բ։", "Our product.", "գ դ") == "Our product will be known."
+    assert t.translate_continuation("ա բ։", "Our product.", "գ դ") == ("Our product", "will be known.")
     (batch, prefix, kw), = t.calls
     assert batch == [["hye_Armn", "▁ա", "▁բ։", "▁գ", "▁դ", "</s>"]]
     assert prefix == [["eng_Latn", "▁Our", "▁product"]]
@@ -79,7 +79,7 @@ def test_continuation_keeps_shown_part_and_drops_its_full_stop():
 
 def test_continuation_falls_back_when_model_stops_early():
     t = scripted_translator([["."], ["▁Hello"]])  # the model ends right after the forced part
-    assert t.translate_continuation("ա։", "Yes.", "բարև ձեզ") == "Yes. Hello"
+    assert t.translate_continuation("ա։", "Yes.", "բարև ձեզ") == ("Yes.", "Hello")
     assert t.calls[1][0] == [["hye_Armn", "▁բարև", "▁ձեզ", "</s>"]]
 
 

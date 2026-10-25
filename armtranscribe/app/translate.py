@@ -47,26 +47,25 @@ class CT2Translator:
             return ""
         return self.tgt_sp.decode(self._decode(hy, []))
 
-    def translate_continuation(self, prev_hy: str, prev_en: str, hy: str) -> str:
-        """English for `prev_hy hy`, where `prev_hy` was already shown translated as `prev_en`.
+    def translate_continuation(self, prev_hy: str, prev_en: str, hy: str) -> tuple[str, str]:
+        """English for `hy`, which follows `prev_hy`, already shown translated as `prev_en`.
 
-        `hy` usually continues a sentence cut at a pause, so `prev_hy hy` is translated as one
-        text with the output forced to start with `prev_en` (minus its final full stop): the part
-        already read stays as it was, the new part is translated in context. NLLB tends to drop
-        the second of two sentences; if the continuation has far fewer letters than `hy`, `hy` is
-        translated on its own and appended instead.
+        Returns (`prev_en` as it should now read, English for `hy`). `hy` usually continues a
+        sentence cut at a pause, so `prev_hy hy` is translated as one text with the output forced
+        to start with `prev_en` minus its final full stop: the part already read stays, the new
+        part is translated in context. NLLB tends to drop the second of two sentences; if the
+        continuation has far fewer letters than `hy`, `hy` is translated on its own instead.
         """
         head = prev_en.rstrip().rstrip(".։").rstrip()
         if not hy.strip():
-            return prev_en
+            return prev_en, ""
         if not head:
-            return self.translate(f"{prev_hy} {hy}")
+            return "", self.translate(f"{prev_hy} {hy}")
         forced = self.tgt_sp.encode(head, out_type=str)
-        tokens = self._decode(f"{prev_hy} {hy}", forced)
-        added = self.tgt_sp.decode(tokens[len(forced):])
+        added = self.tgt_sp.decode(self._decode(f"{prev_hy} {hy}", forced)[len(forced):])
         if len(re.findall(r"\w", added)) < 0.3 * len(re.findall(r"\w", hy)):  # ~ as many letters in EN as in HY
-            return f"{prev_en.rstrip()} {self.translate(hy)}"
-        return self.tgt_sp.decode(tokens)
+            return prev_en.rstrip(), self.translate(hy)
+        return head, added
 
 
 def load_translator(path: str) -> Translator:

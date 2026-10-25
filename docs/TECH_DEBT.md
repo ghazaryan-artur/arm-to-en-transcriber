@@ -176,6 +176,8 @@ Cost: a long monologue now shows its first line up to ~13 s after it started (wa
 New mic (`External Microphone`, a wired headset) leaked the call into the mic: remote speech at −48 dBFS in the mic vs the user's −28, < 5 ms behind the system stream. Every remote line was printed twice (`Speaker 1` and `Me`), and the `Me` copies broke the line merging (lines interleaved, `↻` everywhere).
 **Fixed**: `echo.py` — a mic segment whose normalised cross-correlation with the system stream (best lag within ±0.3 s, each window normalised by its own energy) is ≥ 0.3 is dropped before ASR. On all five calls: leaked segments 0.37–0.59 (call 5 ×6, and `Ես եմ հարով լավ` in call 3, which was also echo), own speech 0.01–0.16, including talking over the other side. A segment where the user speaks *and* the leak is heard still passes and can mix both.
 
+**Next run (Zoom, podcast played into the call):** a 3-segment line (26.7 s of audio) took MT 4.6 s → latency 6.7 s, over the 5 s target: the continuation re-translated the whole line so far. Now only the segment before is the context (its English forced as prefix), so MT time no longer grows with the line; the 3-segment line from call 2 still reads as one sentence ("…and we hope that our product will be recognized by many in the world and we will get a positive response").
+
 ---
 
 ## Resolved

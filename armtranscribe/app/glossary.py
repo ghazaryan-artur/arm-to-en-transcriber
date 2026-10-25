@@ -225,7 +225,8 @@ class GlossaryTranslator:
     def _mt(self, hy: str) -> str:
         return self._post(self.mt.translate(self._pre(hy)))
 
-    def translate_continuation(self, prev_hy: str, prev_en: str, hy: str) -> str:
+    def translate_continuation(self, prev_hy: str, prev_en: str, hy: str) -> tuple[str, str]:
         if not hasattr(self.mt, "translate_continuation"):
-            return self.translate(f"{prev_hy} {hy}")
-        return self._post(self.mt.translate_continuation(self._pre(prev_hy), prev_en, self._pre(hy)))
+            return prev_en, self.translate(hy)
+        head, added = self.mt.translate_continuation(self._pre(prev_hy), prev_en, self._pre(hy))
+        return self._post(head), self._post(added)
