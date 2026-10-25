@@ -11,12 +11,14 @@ Problems we know about, understand, and could fix, but deliberately don't within
 - **The microphone is chosen once at startup.** Switching the mic in the call app later doesn't switch it in the transcriber.
   *Fix:* follow the system default input, or reopen on change.
 - **No system-audio-only mode.** The mic is always captured; listening on speakers with your mic muted in the call still records the room. *Why left:* the brief needs both sources. *Fix:* a `--no-mic` flag (~10 min).
+- **A leak scoring just under the echo threshold** (0.29 vs 0.30, one of 114 mic segments) is printed as `Me`; a lower threshold would start dropping own speech said over the other side (up to 0.28). *Fix:* also drop a mic segment whose text is a copy of the system-side text of the same moment (needs the mic segment to wait for that ASR).
 - **Echo while both talk.** Call audio leaking into the mic is dropped only when the mic segment is a clear copy of it; if you speak at the same time, the other side's words can mix into your `Me` line. Seen in the rehearsal: Gor's first sentence also appeared at the end of a `Me` line that continued Artur's. *Why left:* echo handling is out of scope per the brief. *Fix:* a real acoustic echo canceller (WebRTC AEC3) on the mic stream.
 - **Two clocks.** Mic and BlackHole are separate CoreAudio clocks; lines from both at the same second can print in either order, and drift would matter only in hour-long sessions.
 
 ## Segmentation and output
 
 - **Very short replies (< 0.4 s, a quick `Հա`) are dropped** by the VAD's minimum segment length. *Why left:* lowering it lets noise blips through; needs a noise test set to tune safely. *Fix:* min 0.25 s, but only with a high VAD peak (≥ 0.9).
+- **Continued lines cost MT time**: re-translating a continuation with the previous segment as context took 3.5 s in a Meet test (latency 4.6 s, close to the 5 s limit). *Fix:* use only the last sentence of the previous segment as context.
 - **Lines appear in the order segments end**, so a long remote line can be printed after a later short `Me` line.
 - **A long monologue** shows its first line only at the next pause or at the 12 s cap (up to ~13 s after it started; still < 5 s after the end of that phrase).
 - **In-place redraw of a continued line** assumes the terminal wasn't resized since the line was printed; otherwise parts of the old block can stay on screen (cosmetic).
@@ -35,7 +37,7 @@ Problems we know about, understand, and could fix, but deliberately don't within
 - **Numbers the ASR mishears** (`հիսուներկու` → `մինիսուն երկու`) can't be repaired by the digit conversion. A lone number with a case ending is ambiguous (`Տասներկուսին` → "The 12th." where "At twelve." was meant).
 - **Names outside the built-in list** (without `ջան`) are still translated as words.
 - **Overlapping speech** on one stream can't be separated.
-- **Non-speech sounds** are dropped only when the ASR writes one of the known outputs (`Հովհ.`, the call app's join / leave sound); other sounds can still come out as a short word.
+- **Non-speech sounds** are dropped only when the ASR writes one of the known outputs (`Հովհ.`, what it writes for near-silence); other sounds can still come out as a short word.
 - **Western Armenian** is not supported or tested.
 
 ## Performance and resources

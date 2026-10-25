@@ -66,6 +66,8 @@ NLLB beam size 1/2/4 gives chrF++ 65.0/66.0/66.0 (1.3B), so beam 2 is used.
 
 **Numbers** (`tools/numbers_mt/`, 30 sentences with numbers, NLLB-1.3B with the full glossary): number right in the English 27/30 with number words as the ASR writes them (`Քսաներեք։` → "It's twenty.", 2018 → 1818, 2026 → 2600), 29/30 with numbers above ten converted to digits (`app/numbers.py`; the remaining one, `Տասներկուսին։` → "The 12th.", is ambiguous).
 
+**Tuning on recorded calls** (speakers, echo filter, VAD): defaults confirmed by sweeps over all saved sessions; numbers in the [app README](armtranscribe/README.md#benchmark).
+
 **Speaker ID** (SpeechBrain ECAPA-TDNN, `scripts/tune_speakers.py`, 3 podcast clips, 9 min, 2 people): same voice 0.6–0.9 cosine similarity to its centroid, the other voice 0.0–0.35; thresholds 0.35–0.55 give identical labels (default 0.45), exactly 2 speakers per clip. Only one embedding model was tested; pyannote / Resemblyzer were rejected without a run (see the app README).
 
 Harness and per-clip hypotheses of the ASR run: [`tools/asr_bakeoff/`](tools/asr_bakeoff/) (`results/<model>.json`). Why each model was chosen or rejected: [app README → Models](armtranscribe/README.md#models).

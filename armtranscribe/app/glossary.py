@@ -189,9 +189,9 @@ def _literary(m: re.Match) -> str:
 EN_FIXES = [(re.compile(r"\bdrachma(s?)\b", re.IGNORECASE), r"dram\1")]
 
 
-# What the ASR writes for non-speech sounds: `Հովհ.` came out of the system stream in 4 of 5 Zoom / Meet
-# sessions, at the start or end of the call (the call app's join / leave sound), once `«Մովհ է.` from
-# the mic. Not words anyone says, so the line is dropped. Keys are normalised with _norm.
+# What the ASR writes for (near-)silence: FastConformer turns 1 s of zeros into `Հովհ.`; it came out of
+# the system stream in 4 of 5 Zoom / Meet sessions (quiet stretches at the start or end of the call),
+# once as `«Մովհ է.` from the mic. Not words anyone says, so the line is dropped. Keys: _norm.
 NOISE_OUTPUTS = {"հովհ", "մովհ", "մովհ է"}
 
 
